@@ -196,7 +196,7 @@ class DataProcessor(object):
   @classmethod
   def _read_data(cls, input_file):
     """Reads a BIO data."""
-    with open(input_file) as f:
+    with open(input_file,encoding='utf-8') as f:
       lines = []
       words = []
       labels = []
@@ -496,7 +496,6 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
       (assignment_map, initialized_variable_names
       ) = modeling.get_assignment_map_from_checkpoint(tvars, init_checkpoint)
       if use_tpu:
-
         def tpu_scaffold():
           tf.train.init_from_checkpoint(init_checkpoint, assignment_map)
           return tf.train.Scaffold()
@@ -518,12 +517,18 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
 
       train_op = optimization.create_optimizer(
           total_loss, learning_rate, num_train_steps, num_warmup_steps, use_tpu)
-
+      
+      train_hook_list = []
+      train_tensors_log = {'loss': total_loss,
+                           'global_step': tf.train.get_global_step()}
+      train_hook_list.append(tf.train.LoggingTensorHook(
+          tensors=train_tensors_log, every_n_iter=100))
       output_spec = tf.contrib.tpu.TPUEstimatorSpec(
           mode=mode,
           loss=total_loss,
           train_op=train_op,
-          scaffold_fn=scaffold_fn)
+          scaffold_fn=scaffold_fn,
+          training_hooks=train_hook_list)
     elif mode == tf.estimator.ModeKeys.EVAL:
 
       def metric_fn(per_example_loss, label_ids, logits):
@@ -770,7 +775,7 @@ def main(_):
     filenames = tf.gfile.ListDirectory(FLAGS.output_dir)
     for filename in filenames:
         if filename.endswith(".index"):
-            ckpt_name = filename[:-6]
+            ckpt_name = filename[:-10]
             cur_filename = os.path.join(FLAGS.output_dir, ckpt_name)
             global_step = int(cur_filename.split("-")[-1])
             tf.logging.info("Add {} to eval list.".format(cur_filename))
