@@ -775,7 +775,7 @@ def main(_):
     filenames = tf.gfile.ListDirectory(FLAGS.output_dir)
     for filename in filenames:
         if filename.endswith(".index"):
-            ckpt_name = filename[:-10]
+            ckpt_name = filename[:-6]
             cur_filename = os.path.join(FLAGS.output_dir, ckpt_name)
             global_step = int(cur_filename.split("-")[-1])
             tf.logging.info("Add {} to eval list.".format(cur_filename))
