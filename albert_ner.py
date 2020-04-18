@@ -65,7 +65,8 @@ flags.DEFINE_bool(
     "do_lower_case", True,
     "Whether to lower case the input text. Should be True for uncased "
     "models and False for cased models.")
-
+flags.DEFINE_integer("iterations_per_hook_output", 100,
+                     "How many steps to make in each estimator call.")
 flags.DEFINE_integer(
     "max_seq_length", 128,
     "The maximum total input sequence length after WordPiece tokenization. "
@@ -522,7 +523,7 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
       train_tensors_log = {'loss': total_loss,
                            'global_step': tf.train.get_global_step()}
       train_hook_list.append(tf.train.LoggingTensorHook(
-          tensors=train_tensors_log, every_n_iter=100))
+          tensors=train_tensors_log, every_n_iter=FLAGS.iterations_per_hook_output))
       output_spec = tf.contrib.tpu.TPUEstimatorSpec(
           mode=mode,
           loss=total_loss,
