@@ -719,7 +719,8 @@ def main(_):
         seq_length=FLAGS.max_seq_length,
         is_training=True,
         drop_remainder=True)
-    estimator.train(input_fn=train_input_fn, max_steps=num_train_steps)
+    for i in range(num_train_steps):
+        estimator.train(input_fn=train_input_fn, max_steps=1)
 
   if FLAGS.do_eval:
     eval_examples = processor.get_dev_examples(FLAGS.data_dir)
