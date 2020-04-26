@@ -34,6 +34,10 @@ import tf_metrics
 flags = tf.flags
 
 FLAGS = flags.FLAGS
+##for data_generate.py
+flags.DEFINE_integer(
+    "perc", 3,"the percentage of the supervised data")
+
 
 ## Required parameters
 flags.DEFINE_string(
@@ -101,7 +105,7 @@ flags.DEFINE_integer("save_checkpoints_steps", 1000,
 
 flags.DEFINE_integer("iterations_per_loop", 1000,
                      "How many steps to make in each estimator call.")
-flags.DEFINE_integer("iterations_per_hook_output", 100,
+flags.DEFINE_integer("iterations_per_hook_output", 10,
                      "How many steps to make in each estimator call.")
 
 tf.flags.DEFINE_string(
@@ -123,6 +127,8 @@ tf.flags.DEFINE_string(
     "metadata.")
 
 tf.flags.DEFINE_string("master", None, "[Optional] TensorFlow master URL.")
+
+
 
 params = {
     'batch_size': FLAGS.train_batch_size
