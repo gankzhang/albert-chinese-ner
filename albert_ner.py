@@ -36,8 +36,7 @@ flags = tf.flags
 FLAGS = flags.FLAGS
 ##for data_generate.py
 flags.DEFINE_integer(
-    "perc", 3,"the percentage of the supervised data")
-
+    "perc", 3,"The percentage of the supervised data")
 
 ## Required parameters
 flags.DEFINE_string(
@@ -50,8 +49,6 @@ flags.DEFINE_string(
     "The config json file corresponding to the pre-trained BERT model. "
     "This specifies the model architecture.")
 
-flags.DEFINE_string("task_name", "NER", "The name of the task to train.")
-
 flags.DEFINE_string("vocab_file", None,
                     "The vocabulary file that the BERT model was trained on.")
 
@@ -59,6 +56,9 @@ flags.DEFINE_string(
     "output_dir", None,
     "The output directory where the model checkpoints will be written.")
 
+flags.DEFINE_string(
+    "task_name", 'ner',
+    "The task names in [ner, semi_ner]")
 ## Other parameters
 
 flags.DEFINE_string(
@@ -105,30 +105,8 @@ flags.DEFINE_integer("save_checkpoints_steps", 1000,
 
 flags.DEFINE_integer("iterations_per_loop", 1000,
                      "How many steps to make in each estimator call.")
-flags.DEFINE_integer("iterations_per_hook_output", 10,
+flags.DEFINE_integer("iterations_per_hook_output", 1000,
                      "How many steps to make in each estimator call.")
-
-tf.flags.DEFINE_string(
-    "tpu_name", None,
-    "The Cloud TPU to use for training. This should be either the name "
-    "used when creating the Cloud TPU, or a grpc://ip.address.of.tpu:8470 "
-    "url.")
-
-tf.flags.DEFINE_string(
-    "tpu_zone", None,
-    "[Optional] GCE zone where the Cloud TPU is located in. If not "
-    "specified, we will attempt to automatically detect the GCE project from "
-    "metadata.")
-
-tf.flags.DEFINE_string(
-    "gcp_project", None,
-    "[Optional] Project name for the Cloud TPU-enabled project. If not "
-    "specified, we will attempt to automatically detect the GCE project from "
-    "metadata.")
-
-tf.flags.DEFINE_string("master", None, "[Optional] TensorFlow master URL.")
-
-
 
 params = {
     'batch_size': FLAGS.train_batch_size
@@ -374,7 +352,7 @@ def file_based_convert_examples_to_features(
 
 def file_based_input_fn_builder(input_file, seq_length, is_training,
                                 drop_remainder):
-  """Creates an `input_fn` closure to be passed to TPUEstimator."""
+  """Creates an `input_fn` closure to be passed to Estimator."""
 
   name_to_features = {
       "input_ids": tf.FixedLenFeature([seq_length], tf.int64),
@@ -388,13 +366,13 @@ def file_based_input_fn_builder(input_file, seq_length, is_training,
     """Decodes a record to a TensorFlow example."""
     example = tf.parse_single_example(record, name_to_features)
 
-    # tf.Example only supports tf.int64, but the TPU only supports tf.int32.
-    # So cast all int64 to int32.
-    for name in list(example.keys()):
-      t = example[name]
-      if t.dtype == tf.int64:
-        t = tf.to_int32(t)
-      example[name] = t
+    # # tf.Example only supports tf.int64, but the TPU only supports tf.int32.
+    # # So cast all int64 to int32.
+    # for name in list(example.keys()):
+    #   t = example[name]
+    #   if t.dtype == tf.int64:
+    #     t = tf.to_int32(t)
+    #   example[name] = t
 
     return example
 
@@ -552,8 +530,7 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
   return model_fn
 
 
-# This function is not used by this file but is still used by the Colab and
-# people who depend on it.
+
 def input_fn_builder(features, seq_length, is_training, drop_remainder):
   """Creates an `input_fn` closure to be passed to TPUEstimator."""
 
@@ -566,7 +543,7 @@ def input_fn_builder(features, seq_length, is_training, drop_remainder):
     all_input_ids.append(feature.input_ids)
     all_input_mask.append(feature.input_mask)
     all_segment_ids.append(feature.segment_ids)
-    all_label_ids.append(feature.label_id)
+    all_label_ids.append(feature.label_ids)
 
   def input_fn(params):
     """The actual input function."""
@@ -593,7 +570,7 @@ def input_fn_builder(features, seq_length, is_training, drop_remainder):
                 shape=[num_examples, seq_length],
                 dtype=tf.int32),
         "label_ids":
-            tf.constant(all_label_ids, shape=[num_examples], dtype=tf.int32),
+            tf.constant(all_label_ids, shape=[num_examples, seq_length], dtype=tf.int32),
     })
 
     if is_training:
@@ -605,19 +582,22 @@ def input_fn_builder(features, seq_length, is_training, drop_remainder):
 
   return input_fn
 
-# This function is not used by this file but is still used by the Colab and
-# people who depend on it.
+
 def convert_examples_to_features(examples, label_list, max_seq_length,
                                  tokenizer):
   """Convert a set of `InputExample`s to a list of `InputFeatures`."""
-
+  label_map = {}
+  for (i, label) in enumerate(label_list,1):
+    label_map[label] = i
+  with open('albert_base_ner_checkpoints/label2id.pkl','wb') as w:
+    pickle.dump(label_map,w)
   features = []
   for (ex_index, example) in enumerate(examples):
     if ex_index % 10000 == 0:
       tf.logging.info("Writing example %d of %d" % (ex_index, len(examples)))
 
-    feature = convert_single_example(ex_index, example, label_list,
-                                     max_seq_length, tokenizer)
+    feature = convert_single_example(ex_index, example, label_map,
+                                     max_seq_length, tokenizer,None)
 
     features.append(feature)
   return features
@@ -627,7 +607,6 @@ def main(_):
   tf.logging.set_verbosity(tf.logging.INFO)
 
   processors = {
-      # TODO change processors
       "ner": NerProcessor
   }
 
@@ -647,9 +626,6 @@ def main(_):
         (FLAGS.max_seq_length, bert_config.max_position_embeddings))
 
   tf.gfile.MakeDirs(FLAGS.output_dir)
-
-  task_name = FLAGS.task_name.lower()
-
 
   processor = NerProcessor()
 
@@ -673,7 +649,7 @@ def main(_):
   num_train_steps = None
   num_warmup_steps = None
   if FLAGS.do_train:
-    train_examples = processor.get_train_examples(FLAGS.data_dir) # TODO
+    train_examples = processor.get_train_examples(FLAGS.data_dir)
     print("###length of total train_examples:",len(train_examples))
     num_train_steps = int(len(train_examples)/ FLAGS.train_batch_size * FLAGS.num_train_epochs)
     num_warmup_steps = int(num_train_steps * FLAGS.warmup_proportion)
@@ -691,13 +667,7 @@ def main(_):
   # or GPU.
   estimator = tf.estimator.Estimator(model_fn=model_fn,
       config=run_config,params = params)
-  # estimator = tf.contrib.tpu.TPUEstimator(
-  #     use_tpu=False,
-  #     model_fn=model_fn,
-  #     config=run_config,
-  #     train_batch_size=FLAGS.train_batch_size,
-  #     eval_batch_size=FLAGS.eval_batch_size,
-  #     predict_batch_size=FLAGS.predict_batch_size)
+
 
   if FLAGS.do_train:
     train_file = os.path.join(FLAGS.output_dir, "train.tf_record")
@@ -714,6 +684,12 @@ def main(_):
         seq_length=FLAGS.max_seq_length,
         is_training=True,
         drop_remainder=True)
+    train_features = convert_examples_to_features(train_examples, label_list, FLAGS.max_seq_length, tokenizer)
+
+    train_input_fn = input_fn_builder(features=train_features,
+                     seq_length=FLAGS.max_seq_length,
+                     is_training=True,
+                     drop_remainder=True)
     estimator.train(input_fn=train_input_fn, max_steps=num_train_steps)
 
   if FLAGS.do_eval:
