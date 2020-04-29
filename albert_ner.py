@@ -28,7 +28,7 @@ import tokenization
 import tensorflow as tf
 import pickle
 import tf_metrics
-
+import random
 # from loss import bi_tempered_logistic_loss
 
 flags = tf.flags
@@ -36,7 +36,7 @@ flags = tf.flags
 FLAGS = flags.FLAGS
 ##for data_generate.py
 flags.DEFINE_integer(
-    "perc", 3,"The percentage of the supervised data")
+    "perc", 10, "The percentage of the supervised data")
 
 ## Required parameters
 flags.DEFINE_string(
@@ -69,6 +69,10 @@ flags.DEFINE_bool(
     "do_lower_case", True,
     "Whether to lower case the input text. Should be True for uncased "
     "models and False for cased models.")
+
+flags.DEFINE_bool(
+    "mixup", True,
+    "If mix the training set with random portion")
 
 flags.DEFINE_integer(
     "max_seq_length", 128,
@@ -216,6 +220,11 @@ class NerProcessor(DataProcessor):
   def get_test_examples(self,data_dir):
     return self._create_example(
       self._read_data(os.path.join(data_dir, "test.txt")), "test")
+
+  def get_unlabel_examples(self, data_dir):
+    return self._create_example(
+      self._read_data(os.path.join(data_dir, "unsuper_train.txt")), "unlabel"
+    )
 
 
   def get_labels(self):
@@ -524,7 +533,7 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
     else:
       output_spec = tf.estimator.EstimatorSpec(
           mode=mode,
-          predictions= predicts)
+          predictions= predicts)#predictions can be a tensor or a dict of tensors
     return output_spec
 
   return model_fn
@@ -532,7 +541,7 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
 
 
 def input_fn_builder(features, seq_length, is_training, drop_remainder):
-  """Creates an `input_fn` closure to be passed to TPUEstimator."""
+  """Creates an `input_fn` closure to be passed to Estimator."""
 
   all_input_ids = []
   all_input_mask = []
@@ -545,6 +554,32 @@ def input_fn_builder(features, seq_length, is_training, drop_remainder):
     all_segment_ids.append(feature.segment_ids)
     all_label_ids.append(feature.label_ids)
 
+  def mixup():
+      num_examples = len(all_input_ids)
+      while True:
+          mix_alpha = random.random()*0.2
+          id_a = random.randint(0,num_examples - 1)
+          id_b = random.randint(0,num_examples - 1)
+          input_mask = all_input_mask[id_a] * all_input_mask[id_b]
+          input_ids = (all_input_ids*(1 - mix_alpha) + all_input_ids * mix_alpha) * input_mask
+          label_ids = (all_label_ids*(1 - mix_alpha) + all_label_ids * mix_alpha) * input_mask
+          segment_ids = all_segment_ids[0]
+          yield {'input_ids':tf.constant(
+              input_ids, shape=[seq_length],
+              dtype=tf.int32),
+                'input_mask': tf.constant(
+                  input_mask, shape=[seq_length],
+                  dtype=tf.int32),
+                'label_ids': tf.constant(
+                  label_ids, shape=[seq_length],
+                  dtype=tf.int32),
+              "segment_ids":
+                  tf.constant(
+                      segment_ids,
+                      shape=[seq_length],
+                      dtype=tf.int32)
+          }
+
   def input_fn(params):
     """The actual input function."""
     batch_size = params["batch_size"]
@@ -554,7 +589,18 @@ def input_fn_builder(features, seq_length, is_training, drop_remainder):
     # This is for demo purposes and does NOT scale to large data sets. We do
     # not use Dataset.from_generator() because that uses tf.py_func which is
     # not TPU compatible. The right way to load data is with TFRecordReader.
-    d = tf.data.Dataset.from_tensor_slices({
+
+    if FLAGS.mixup and is_training:
+        d = tf.data.Dataset.from_generator(mixup,{'input_ids':tf.int32,
+                                                  'input_mask':tf.int32,
+                                                  'label_ids':tf.int32,
+                                                  'segment_ids':tf.int32},
+                                                 {'input_ids':tf.TensorShape([seq_length]),
+                                                  'input_mask':tf.TensorShape([seq_length]),
+                                                  'label_ids':tf.TensorShape([seq_length]),
+                                                  'segment_ids':tf.TensorShape([seq_length])})
+    else:
+        d = tf.data.Dataset.from_tensor_slices({
         "input_ids":
             tf.constant(
                 all_input_ids, shape=[num_examples, seq_length],
@@ -598,7 +644,6 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
 
     feature = convert_single_example(ex_index, example, label_map,
                                      max_seq_length, tokenizer,None)
-
     features.append(feature)
   return features
 
@@ -627,7 +672,7 @@ def main(_):
 
   tf.gfile.MakeDirs(FLAGS.output_dir)
 
-  processor = NerProcessor()
+  processor = processors[FLAGS.task_name]()
 
   label_list = processor.get_labels()
 
@@ -636,7 +681,7 @@ def main(_):
 
   tpu_cluster_resolver = None
 
-  is_per_host = tf.contrib.tpu.InputPipelineConfig.PER_HOST_V2
+  # is_per_host = tf.contrib.tpu.InputPipelineConfig.PER_HOST_V2
   # Cloud TPU: Invalid TPU configuration, ensure ClusterResolver is passed to tpu.
   print("###tpu_cluster_resolver:",tpu_cluster_resolver)
   run_config = tf.estimator.RunConfig(
@@ -649,10 +694,14 @@ def main(_):
   num_train_steps = None
   num_warmup_steps = None
   if FLAGS.do_train:
+    # prepare the data here
     train_examples = processor.get_train_examples(FLAGS.data_dir)
     print("###length of total train_examples:",len(train_examples))
-    num_train_steps = int(len(train_examples)/ FLAGS.train_batch_size * FLAGS.num_train_epochs)
+    num_train_steps = int(len(train_examples)/ FLAGS.train_batch_size * FLAGS.num_train_epochs)#TODO: change the num_train_steps
     num_warmup_steps = int(num_train_steps * FLAGS.warmup_proportion)
+
+    unlabel_train_examples = processor.get_unlabel_examples(FLAGS.data_dir)
+    print("###length of total unlabel_examples:",len(unlabel_train_examples))
 
   model_fn = model_fn_builder(
       bert_config=bert_config,
@@ -670,26 +719,33 @@ def main(_):
 
 
   if FLAGS.do_train:
-    train_file = os.path.join(FLAGS.output_dir, "train.tf_record")
-    train_file_exists=os.path.exists(train_file)
-    print("###train_file_exists:", train_file_exists," ;train_file:",train_file)
-    if not train_file_exists: # if tf_record file not exist, convert from raw text file. # TODO
-        file_based_convert_examples_to_features(train_examples, label_list, FLAGS.max_seq_length, tokenizer, train_file)
+    # train_file = os.path.join(FLAGS.output_dir, "train.tf_record")
+    # train_file_exists=os.path.exists(train_file)
+    # print("###train_file_exists:", train_file_exists," ;train_file:",train_file)
+    # if not train_file_exists: # if tf_record file not exist, convert from raw text file. # TODO
+    #     file_based_convert_examples_to_features(train_examples, label_list, FLAGS.max_seq_length, tokenizer, train_file)
     tf.logging.info("***** Running training *****")
     tf.logging.info("  Num examples = %d", len(train_examples))
     tf.logging.info("  Batch size = %d", FLAGS.train_batch_size)
     tf.logging.info("  Num steps = %d", num_train_steps)
-    train_input_fn = file_based_input_fn_builder(
-        input_file=train_file,
-        seq_length=FLAGS.max_seq_length,
-        is_training=True,
-        drop_remainder=True)
+    # train_input_fn = file_based_input_fn_builder(
+    #     input_file=train_file,
+    #     seq_length=FLAGS.max_seq_length,
+    #     is_training=True,
+    #     drop_remainder=True)
     train_features = convert_examples_to_features(train_examples, label_list, FLAGS.max_seq_length, tokenizer)
 
     train_input_fn = input_fn_builder(features=train_features,
                      seq_length=FLAGS.max_seq_length,
                      is_training=True,
                      drop_remainder=True)
+
+    # unlabel_train_features = convert_examples_to_features(unlabel_train_examples, label_list, FLAGS.max_seq_length, tokenizer)
+    # unlabel_train_input_fn = input_fn_builder(features=unlabel_train_features,
+    #                  seq_length=FLAGS.max_seq_length,
+    #                  is_training=False,
+    #                  drop_remainder=False)
+
     estimator.train(input_fn=train_input_fn, max_steps=num_train_steps)
 
   if FLAGS.do_eval:
@@ -766,7 +822,7 @@ def main(_):
     file_based_convert_examples_to_features(predict_examples, label_list,
                                             FLAGS.max_seq_length, tokenizer,
                                             predict_file,mode="test")
-                            
+
     tf.logging.info("***** Running prediction*****")
     tf.logging.info("  Num examples = %d", len(predict_examples))
     tf.logging.info("  Batch size = %d", FLAGS.predict_batch_size)
