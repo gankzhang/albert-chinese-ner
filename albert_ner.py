@@ -29,6 +29,7 @@ import tensorflow as tf
 import pickle
 import tf_metrics
 import random
+import numpy as np
 # from loss import bi_tempered_logistic_loss
 
 flags = tf.flags
@@ -560,10 +561,10 @@ def input_fn_builder(features, seq_length, is_training, drop_remainder):
           mix_alpha = random.random()*0.2
           id_a = random.randint(0,num_examples - 1)
           id_b = random.randint(0,num_examples - 1)
-          input_mask = all_input_mask[id_a] * all_input_mask[id_b]
-          input_ids = (all_input_ids*(1 - mix_alpha) + all_input_ids * mix_alpha) * input_mask
-          label_ids = (all_label_ids*(1 - mix_alpha) + all_label_ids * mix_alpha) * input_mask
-          segment_ids = all_segment_ids[0]
+          input_mask = np.array(all_input_mask[id_a]) * np.array(all_input_mask[id_b])
+          input_ids = (np.array(all_input_ids[id_a])*(1 - mix_alpha) + np.array(all_input_ids[id_a]) * mix_alpha) * input_mask
+          label_ids = (np.array(all_label_ids[id_a])*(1 - mix_alpha) + np.array(all_label_ids[id_b]) * mix_alpha) * input_mask
+          segment_ids = np.array(all_segment_ids[0])
           yield {'input_ids':tf.constant(
               input_ids, shape=[seq_length],
               dtype=tf.int32),
