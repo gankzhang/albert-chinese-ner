@@ -72,7 +72,7 @@ flags.DEFINE_bool(
     "models and False for cased models.")
 
 flags.DEFINE_bool(
-    "mixup", True,
+    "mixup", False,
     "If mix the training set with random portion")
 
 flags.DEFINE_integer(
@@ -114,7 +114,9 @@ flags.DEFINE_integer("iterations_per_hook_output", 1000,
                      "How many steps to make in each estimator call.")
 
 params = {
-    'batch_size': FLAGS.train_batch_size
+    'batch_size': FLAGS.train_batch_size,
+    'data_type': 'sup'
+
 }
 
 class InputExample(object):
@@ -389,7 +391,6 @@ def file_based_input_fn_builder(input_file, seq_length, is_training,
   def input_fn(params):
     """The actual input function."""
     batch_size = params["batch_size"]
-
     # For training, we want a lot of parallel reading and shuffling.
     # For eval, we want no shuffling and parallel reading doesn't matter.
     d = tf.data.TFRecordDataset(input_file)
@@ -497,20 +498,35 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
 
     output_spec = None
     if mode == tf.estimator.ModeKeys.TRAIN:
-
-      train_op = optimization.create_optimizer(
+      if params['data_type'] == 'sup':
+          train_op = optimization.create_optimizer(
           total_loss, learning_rate, num_train_steps, num_warmup_steps, use_tpu=False)
 
-      train_hook_list = []
-      train_tensors_log = {'loss': total_loss,
-                           'global_step': tf.train.get_global_step()}
-      train_hook_list.append(tf.train.LoggingTensorHook(
-          tensors=train_tensors_log, every_n_iter=FLAGS.iterations_per_hook_output))
-      output_spec = tf.estimator.EstimatorSpec(
-          mode=mode,
-          loss=total_loss,
-          train_op=train_op,
-          training_hooks=train_hook_list)
+          train_hook_list = []
+          train_tensors_log = {'loss': total_loss,
+                               'global_step': tf.train.get_global_step()}
+          train_hook_list.append(tf.train.LoggingTensorHook(
+              tensors=train_tensors_log, every_n_iter=FLAGS.iterations_per_hook_output))
+          output_spec = tf.estimator.EstimatorSpec(
+              mode=mode,
+              loss=total_loss,
+              train_op=train_op,
+              training_hooks=train_hook_list)
+      elif params['data_type'] == 'unsup':
+          train_op = optimization.create_optimizer(
+          total_loss, learning_rate, num_train_steps, num_warmup_steps, use_tpu=False)
+
+          train_hook_list = []
+          train_tensors_log = {'loss': total_loss,
+                               'global_step': tf.train.get_global_step()}
+          train_hook_list.append(tf.train.LoggingTensorHook(
+              tensors=train_tensors_log, every_n_iter=FLAGS.iterations_per_hook_output))
+          output_spec = tf.estimator.EstimatorSpec(
+              mode=mode,
+              loss=total_loss,
+              train_op=train_op,
+              training_hooks=train_hook_list)
+
     elif mode == tf.estimator.ModeKeys.EVAL:
 
       def metric_fn(per_example_loss, label_ids, logits):
@@ -561,10 +577,10 @@ def input_fn_builder(features, seq_length, is_training, drop_remainder):
           mix_alpha = random.random()*0.2
           id_a = random.randint(0,num_examples - 1)
           id_b = random.randint(0,num_examples - 1)
-          input_mask = np.array(all_input_mask[id_a]) * np.array(all_input_mask[id_b])
-          input_ids = (np.array(all_input_ids[id_a])*(1 - mix_alpha) + np.array(all_input_ids[id_a]) * mix_alpha) * input_mask
-          label_ids = (np.array(all_label_ids[id_a])*(1 - mix_alpha) + np.array(all_label_ids[id_b]) * mix_alpha) * input_mask
-          segment_ids = np.array(all_segment_ids[0])
+          input_mask = tf.multiply(tf.convert_to_tensor(all_input_mask[id_a]),tf.convert_to_tensor(all_input_mask[id_b]))
+          input_ids = (tf.multiply(tf.convert_to_tensor(all_input_ids[id_a]),(1 - mix_alpha)) + tf.multiply(tf.convert_to_tensor(all_input_ids[id_a]), mix_alpha)) * input_mask
+          label_ids = (tf.multiply(tf.convert_to_tensor(all_label_ids[id_a]), (1 - mix_alpha)) + tf.multiply(tf.convert_to_tensor(all_label_ids[id_b]), mix_alpha)) * input_mask
+          segment_ids = tf.convert_to_tensor(all_segment_ids[0])
           yield {'input_ids':tf.constant(
               input_ids, shape=[seq_length],
               dtype=tf.int32),
@@ -741,13 +757,35 @@ def main(_):
                      is_training=True,
                      drop_remainder=True)
 
-    # unlabel_train_features = convert_examples_to_features(unlabel_train_examples, label_list, FLAGS.max_seq_length, tokenizer)
-    # unlabel_train_input_fn = input_fn_builder(features=unlabel_train_features,
-    #                  seq_length=FLAGS.max_seq_length,
-    #                  is_training=False,
-    #                  drop_remainder=False)
-
     estimator.train(input_fn=train_input_fn, max_steps=num_train_steps)
+
+
+    length = 10000
+    unlabel_train_examples = unlabel_train_examples[:length]
+    unlabel_train_features = convert_examples_to_features(unlabel_train_examples, label_list, FLAGS.max_seq_length, tokenizer)
+    unlabel_train_input_fn = input_fn_builder(features=unlabel_train_features,
+                     seq_length=FLAGS.max_seq_length,
+                     is_training=False,
+                     drop_remainder=False)
+
+    result = estimator.predict(unlabel_train_input_fn)
+    tag = [1]*length
+    del_num = 0
+    for i,feature in enumerate(unlabel_train_features):
+        predict_feature = next(result)
+        print(i,np.sum(feature.label_ids != predict_feature)/np.sum(feature.input_mask))
+        if np.sum(feature.label_ids != predict_feature)/np.sum(feature.input_mask) > 0.05:
+            tag[i] = 0
+    for i,_ in enumerate(unlabel_train_examples):
+        if not tag[i]:
+            unlabel_train_examples.pop(i-del_num)
+            del_num += 1
+    unlabel_train_features = convert_examples_to_features(unlabel_train_examples, label_list, FLAGS.max_seq_length, tokenizer)
+    unlabel_train_input_fn = input_fn_builder(features=unlabel_train_features,
+                     seq_length=FLAGS.max_seq_length,
+                     is_training=True,
+                     drop_remainder=True)
+    estimator.train(input_fn=unlabel_train_input_fn, steps=length/FLAGS.train_batch_size*2)
 
   if FLAGS.do_eval:
     eval_examples = processor.get_dev_examples(FLAGS.data_dir)
