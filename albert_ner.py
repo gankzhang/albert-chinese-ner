@@ -90,7 +90,7 @@ flags.DEFINE_bool(
     "Whether to run the model in inference mode on the test set.")
 
 flags.DEFINE_bool(
-    "use_unlabel", False,
+    "use_unlabel", True,
     "Whether to use the unlabel dataset")
 
 
@@ -561,7 +561,8 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
     else:
       output_spec = tf.estimator.EstimatorSpec(
           mode=mode,
-          predictions= predicts)#predictions can be a tensor or a dict of tensors
+          predictions= {'predicts':predicts,
+                        'logits':logits})#}predictions can be a tensor or a dict of tensors
     return output_spec
 
   return model_fn
@@ -775,7 +776,7 @@ def main(_):
     estimator.train(input_fn=train_input_fn, max_steps=num_train_steps)
 
     if FLAGS.use_unlabel:
-        unlabel_train_examples = unlabel_train_examples
+        unlabel_train_examples = unlabel_train_examples[:1000]
         unlabel_train_features = convert_examples_to_features(unlabel_train_examples, label_list, FLAGS.max_seq_length, tokenizer)
         unlabel_train_input_fn = input_fn_builder(features=unlabel_train_features,
                          seq_length=FLAGS.max_seq_length,
@@ -785,16 +786,23 @@ def main(_):
         result = estimator.predict(unlabel_train_input_fn)
         tag = [1]*len(unlabel_train_examples)
         del_num = 0
+        print('predicting the Pseudo-Labelling')
         for i,feature in enumerate(unlabel_train_features):
-            predict_feature = next(result)
-            # print(i,np.sum(feature.label_ids != predict_feature)/np.sum(feature.input_mask))
-            if np.sum(feature.label_ids != predict_feature)/np.sum(feature.input_mask) > FLAGS.thres:
+            predict_result = next(result)
+            predict_feature = predict_result['predicts']
+            predict_logits = predict_result['logits']
+            conf = (np.exp(predict_logits).T / (np.sum(np.exp(predict_logits), 1))).T
+            conf = conf[:np.sum(feature.input_mask)].max(1).mean()
+            # print(i,np.sum(feature.label_ids != predict_feature)/np.sum(feature.input_mask),conf)
+            # if np.sum(feature.label_ids != predict_feature)/np.sum(feature.input_mask) > (FLAGS.thres):
+            if conf < (1-FLAGS.thres):#0.01
                 tag[i] = 0
             unlabel_train_features[i].label_ids = predict_feature.tolist()
         for i in range(len(unlabel_train_examples)):
             if not tag[i]:
-                unlabel_train_features.pop(i-del_num)
+                unlabel_train_examples.pop(i-del_num)
                 del_num += 1
+        print('remain',sum(tag)/len(tag)*100,'%')
         unlabel_train_features = unlabel_train_features + train_features * 10
         unlabel_train_input_fn = input_fn_builder(features=unlabel_train_features,
                          seq_length=FLAGS.max_seq_length,
@@ -890,7 +898,7 @@ def main(_):
     output_predict_file = os.path.join(FLAGS.output_dir, "label_test.txt")
     with open(output_predict_file,'w') as writer:
       for prediction in result:
-        output_line = "\n".join(id2label[id] for id in prediction if id!=0) + "\n"
+        output_line = "\n".join(id2label[id] for id in prediction['predicts'] if id!=0) + "\n"
         writer.write(output_line)
 
 
