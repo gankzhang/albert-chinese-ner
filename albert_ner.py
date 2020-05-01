@@ -100,6 +100,9 @@ flags.DEFINE_float("learning_rate", 5e-5, "The initial learning rate for Adam.")
 flags.DEFINE_float("num_train_epochs", 3.0,
                    "Total number of training epochs to perform.")
 
+flags.DEFINE_float("num_unlabel_train_epochs", 2.0,
+                   "Total number of training epochs to perform.")
+
 flags.DEFINE_float(
     "warmup_proportion", 0.1,
     "Proportion of training to perform linear learning rate warmup for. "
@@ -714,18 +717,20 @@ def main(_):
     # prepare the data here
     train_examples = processor.get_train_examples(FLAGS.data_dir)
     print("###length of total train_examples:",len(train_examples))
-    num_train_steps = int(len(train_examples)/ FLAGS.train_batch_size * FLAGS.num_train_epochs)#TODO: change the num_train_steps
-    num_warmup_steps = int(num_train_steps * FLAGS.warmup_proportion)
-
     unlabel_train_examples = processor.get_unlabel_examples(FLAGS.data_dir)
     print("###length of total unlabel_examples:",len(unlabel_train_examples))
+
+    num_train_steps = int(len(train_examples)/ FLAGS.train_batch_size * FLAGS.num_train_epochs)#TODO: change the num_train_steps
+    num_unlabel_train_steps = int(len(unlabel_train_examples)/ FLAGS.train_batch_size * FLAGS.num_unlabel_train_epochs)
+    num_warmup_steps = int(num_train_steps * FLAGS.warmup_proportion)
+
 
   model_fn = model_fn_builder(
       bert_config=bert_config,
       num_labels=len(label_list) + 1,
       init_checkpoint=FLAGS.init_checkpoint,
       learning_rate=FLAGS.learning_rate,
-      num_train_steps=num_train_steps,
+      num_train_steps=num_train_steps + num_unlabel_train_steps,
       num_warmup_steps=num_warmup_steps,
       use_one_hot_embeddings=False)
 
@@ -773,13 +778,14 @@ def main(_):
     del_num = 0
     for i,feature in enumerate(unlabel_train_features):
         predict_feature = next(result)
-        print(i,np.sum(feature.label_ids != predict_feature)/np.sum(feature.input_mask))
+        # print(i,np.sum(feature.label_ids != predict_feature)/np.sum(feature.input_mask))
         if np.sum(feature.label_ids != predict_feature)/np.sum(feature.input_mask) > 0.05:
             tag[i] = 0
     for i,_ in enumerate(unlabel_train_examples):
         if not tag[i]:
             unlabel_train_examples.pop(i-del_num)
             del_num += 1
+    unlabel_train_examples = unlabel_train_examples + train_examples * 3
     unlabel_train_features = convert_examples_to_features(unlabel_train_examples, label_list, FLAGS.max_seq_length, tokenizer)
     unlabel_train_input_fn = input_fn_builder(features=unlabel_train_features,
                      seq_length=FLAGS.max_seq_length,
