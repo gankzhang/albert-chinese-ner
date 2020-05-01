@@ -776,7 +776,7 @@ def main(_):
     estimator.train(input_fn=train_input_fn, max_steps=num_train_steps)
 
     if FLAGS.use_unlabel:
-        unlabel_train_examples = unlabel_train_examples[:1000]
+        unlabel_train_examples = unlabel_train_examples
         unlabel_train_features = convert_examples_to_features(unlabel_train_examples, label_list, FLAGS.max_seq_length, tokenizer)
         unlabel_train_input_fn = input_fn_builder(features=unlabel_train_features,
                          seq_length=FLAGS.max_seq_length,
