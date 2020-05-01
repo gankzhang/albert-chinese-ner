@@ -72,7 +72,7 @@ flags.DEFINE_bool(
     "models and False for cased models.")
 
 flags.DEFINE_bool(
-    "mixup", False,
+    "mixup", True,
     "If mix the training set with random portion")
 
 flags.DEFINE_integer(
@@ -421,6 +421,7 @@ def file_based_input_fn_builder(input_file, seq_length, is_training,
 
 def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
                  labels, num_labels, use_one_hot_embeddings):
+
   """Creates a classification model."""
   model = modeling.BertModel(
       config=bert_config,
@@ -586,12 +587,10 @@ def input_fn_builder(features, seq_length, is_training, drop_remainder):
   def mixup():
       num_examples = len(all_input_ids)
       while True:
-          mix_alpha = random.random()*0.2
           id_a = random.randint(0,num_examples - 1)
-          id_b = random.randint(0,num_examples - 1)
-          input_mask = tf.multiply(tf.convert_to_tensor(all_input_mask[id_a]),tf.convert_to_tensor(all_input_mask[id_b]))
-          input_ids = (tf.multiply(tf.convert_to_tensor(all_input_ids[id_a]),(1 - mix_alpha)) + tf.multiply(tf.convert_to_tensor(all_input_ids[id_a]), mix_alpha)) * input_mask
-          label_ids = (tf.multiply(tf.convert_to_tensor(all_label_ids[id_a]), (1 - mix_alpha)) + tf.multiply(tf.convert_to_tensor(all_label_ids[id_b]), mix_alpha)) * input_mask
+          input_mask = all_input_mask[id_a]
+          input_ids = all_input_ids[id_a]
+          label_ids = all_label_ids[id_a]
           segment_ids = tf.convert_to_tensor(all_segment_ids[0])
           yield {'input_ids':tf.constant(
               input_ids, shape=[seq_length],
@@ -776,7 +775,7 @@ def main(_):
     estimator.train(input_fn=train_input_fn, max_steps=num_train_steps)
 
     if FLAGS.use_unlabel:
-        unlabel_train_examples = unlabel_train_examples
+        unlabel_train_examples = unlabel_train_examples[:1000]
         unlabel_train_features = convert_examples_to_features(unlabel_train_examples, label_list, FLAGS.max_seq_length, tokenizer)
         unlabel_train_input_fn = input_fn_builder(features=unlabel_train_features,
                          seq_length=FLAGS.max_seq_length,
