@@ -793,10 +793,9 @@ def main(_):
             unlabel_train_features[i].label_ids = predict_feature
         for i in range(len(unlabel_train_examples)):
             if not tag[i]:
-                unlabel_train_examples.pop(i-del_num)
+                unlabel_train_features.pop(i-del_num)
                 del_num += 1
-        unlabel_train_examples = unlabel_train_examples + train_examples * 10
-        unlabel_train_features = convert_examples_to_features(unlabel_train_examples, label_list, FLAGS.max_seq_length, tokenizer)
+        unlabel_train_features = unlabel_train_features + train_features * 10
         unlabel_train_input_fn = input_fn_builder(features=unlabel_train_features,
                          seq_length=FLAGS.max_seq_length,
                          is_training=True,
