@@ -102,6 +102,8 @@ flags.DEFINE_float("num_train_epochs", 3.0,
 
 flags.DEFINE_float("num_unlabel_train_epochs", 2.0,
                    "Total number of training epochs to perform.")
+flags.DEFINE_float("thres", 0.05,
+                   "Total number of training epochs to perform.")
 
 flags.DEFINE_float(
     "warmup_proportion", 0.1,
@@ -779,7 +781,7 @@ def main(_):
     for i,feature in enumerate(unlabel_train_features):
         predict_feature = next(result)
         # print(i,np.sum(feature.label_ids != predict_feature)/np.sum(feature.input_mask))
-        if np.sum(feature.label_ids != predict_feature)/np.sum(feature.input_mask) > 0.05:
+        if np.sum(feature.label_ids != predict_feature)/np.sum(feature.input_mask) > FLAGS.thres:
             tag[i] = 0
     for i,_ in enumerate(unlabel_train_examples):
         if not tag[i]:
