@@ -588,9 +588,9 @@ def input_fn_builder(features, seq_length, is_training, drop_remainder):
       num_examples = len(all_input_ids)
       while True:
           id_a = random.randint(0,num_examples - 1)
-          input_mask = all_input_mask[id_a]
-          input_ids = all_input_ids[id_a]
-          label_ids = all_label_ids[id_a]
+          input_mask = tf.convert_to_tensor(all_input_mask[id_a])
+          input_ids = tf.convert_to_tensor(all_input_ids[id_a])
+          label_ids = tf.convert_to_tensor(all_label_ids[id_a])
           segment_ids = tf.convert_to_tensor(all_segment_ids[0])
           yield {'input_ids':tf.constant(
               input_ids, shape=[seq_length],
