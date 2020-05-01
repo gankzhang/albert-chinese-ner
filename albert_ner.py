@@ -790,7 +790,8 @@ def main(_):
             # print(i,np.sum(feature.label_ids != predict_feature)/np.sum(feature.input_mask))
             if np.sum(feature.label_ids != predict_feature)/np.sum(feature.input_mask) > FLAGS.thres:
                 tag[i] = 0
-        for i,_ in enumerate(unlabel_train_examples):
+            unlabel_train_features[i].label_ids = predict_feature
+        for i in range(len(unlabel_train_examples)):
             if not tag[i]:
                 unlabel_train_examples.pop(i-del_num)
                 del_num += 1
