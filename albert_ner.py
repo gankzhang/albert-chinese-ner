@@ -89,6 +89,12 @@ flags.DEFINE_bool(
     "do_predict", False,
     "Whether to run the model in inference mode on the test set.")
 
+flags.DEFINE_bool(
+    "use_unlabel", False,
+    "Whether to use the unlabel dataset")
+
+
+
 flags.DEFINE_integer("train_batch_size", 32, "Total batch size for training.")
 
 flags.DEFINE_integer("eval_batch_size", 8, "Total batch size for eval.")
@@ -719,11 +725,13 @@ def main(_):
     # prepare the data here
     train_examples = processor.get_train_examples(FLAGS.data_dir)
     print("###length of total train_examples:",len(train_examples))
-    unlabel_train_examples = processor.get_unlabel_examples(FLAGS.data_dir)
-    print("###length of total unlabel_examples:",len(unlabel_train_examples))
-
+    if FLAGS.use_unlabel:
+        unlabel_train_examples = processor.get_unlabel_examples(FLAGS.data_dir)
+        print("###length of total unlabel_examples:",len(unlabel_train_examples))
+        num_unlabel_train_steps = int(len(unlabel_train_examples)/ FLAGS.train_batch_size * FLAGS.num_unlabel_train_epochs)
+    else:
+        num_unlabel_train_steps = 0
     num_train_steps = int(len(train_examples)/ FLAGS.train_batch_size * FLAGS.num_train_epochs)#TODO: change the num_train_steps
-    num_unlabel_train_steps = int(len(unlabel_train_examples)/ FLAGS.train_batch_size * FLAGS.num_unlabel_train_epochs)
     num_warmup_steps = int(num_train_steps * FLAGS.warmup_proportion)
 
 
@@ -766,34 +774,33 @@ def main(_):
 
     estimator.train(input_fn=train_input_fn, max_steps=num_train_steps)
 
+    if FLAGS.use_unlabel:
+        unlabel_train_examples = unlabel_train_examples
+        unlabel_train_features = convert_examples_to_features(unlabel_train_examples, label_list, FLAGS.max_seq_length, tokenizer)
+        unlabel_train_input_fn = input_fn_builder(features=unlabel_train_features,
+                         seq_length=FLAGS.max_seq_length,
+                         is_training=False,
+                         drop_remainder=False)
 
-    length = 10000
-    unlabel_train_examples = unlabel_train_examples[:length]
-    unlabel_train_features = convert_examples_to_features(unlabel_train_examples, label_list, FLAGS.max_seq_length, tokenizer)
-    unlabel_train_input_fn = input_fn_builder(features=unlabel_train_features,
-                     seq_length=FLAGS.max_seq_length,
-                     is_training=False,
-                     drop_remainder=False)
-
-    result = estimator.predict(unlabel_train_input_fn)
-    tag = [1]*length
-    del_num = 0
-    for i,feature in enumerate(unlabel_train_features):
-        predict_feature = next(result)
-        # print(i,np.sum(feature.label_ids != predict_feature)/np.sum(feature.input_mask))
-        if np.sum(feature.label_ids != predict_feature)/np.sum(feature.input_mask) > FLAGS.thres:
-            tag[i] = 0
-    for i,_ in enumerate(unlabel_train_examples):
-        if not tag[i]:
-            unlabel_train_examples.pop(i-del_num)
-            del_num += 1
-    unlabel_train_examples = unlabel_train_examples + train_examples * 3
-    unlabel_train_features = convert_examples_to_features(unlabel_train_examples, label_list, FLAGS.max_seq_length, tokenizer)
-    unlabel_train_input_fn = input_fn_builder(features=unlabel_train_features,
-                     seq_length=FLAGS.max_seq_length,
-                     is_training=True,
-                     drop_remainder=True)
-    estimator.train(input_fn=unlabel_train_input_fn, steps=length/FLAGS.train_batch_size*2)
+        result = estimator.predict(unlabel_train_input_fn)
+        tag = [1]*len(unlabel_train_examples)
+        del_num = 0
+        for i,feature in enumerate(unlabel_train_features):
+            predict_feature = next(result)
+            # print(i,np.sum(feature.label_ids != predict_feature)/np.sum(feature.input_mask))
+            if np.sum(feature.label_ids != predict_feature)/np.sum(feature.input_mask) > FLAGS.thres:
+                tag[i] = 0
+        for i,_ in enumerate(unlabel_train_examples):
+            if not tag[i]:
+                unlabel_train_examples.pop(i-del_num)
+                del_num += 1
+        unlabel_train_examples = unlabel_train_examples + train_examples * 10
+        unlabel_train_features = convert_examples_to_features(unlabel_train_examples, label_list, FLAGS.max_seq_length, tokenizer)
+        unlabel_train_input_fn = input_fn_builder(features=unlabel_train_features,
+                         seq_length=FLAGS.max_seq_length,
+                         is_training=True,
+                         drop_remainder=True)
+        estimator.train(input_fn=unlabel_train_input_fn, steps=num_unlabel_train_steps)
 
   if FLAGS.do_eval:
     eval_examples = processor.get_dev_examples(FLAGS.data_dir)
