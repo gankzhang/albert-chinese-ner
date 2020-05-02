@@ -587,25 +587,30 @@ def input_fn_builder(features, seq_length, is_training, drop_remainder):
   def mixup():
       num_examples = len(all_input_ids)
       while True:
-          id_a = random.randint(0,num_examples - 1)
-          input_mask = tf.convert_to_tensor(all_input_mask[id_a])
-          input_ids = tf.convert_to_tensor(all_input_ids[id_a])
-          label_ids = tf.convert_to_tensor(all_label_ids[id_a])
-          segment_ids = tf.convert_to_tensor(all_segment_ids[0])
-          yield {'input_ids':tf.constant(
-              input_ids, shape=[seq_length],
-              dtype=tf.int32),
-                'input_mask': tf.constant(
-                  input_mask, shape=[seq_length],
-                  dtype=tf.int32),
-                'label_ids': tf.constant(
-                  label_ids, shape=[seq_length],
-                  dtype=tf.int32),
-              "segment_ids":
-                  tf.constant(
-                      segment_ids,
-                      shape=[seq_length],
-                      dtype=tf.int32)
+          id_a = random.randint(0, num_examples - 1)
+          input_mask = all_input_mask[id_a]
+          input_ids = all_input_ids[id_a]
+          label_ids = all_label_ids[id_a]
+          segment_ids = all_segment_ids[0]
+          # yield {'input_ids':tf.constant(
+          #     input_ids, shape=[seq_length],
+          #     dtype=tf.int32),
+          #       'input_mask': tf.constant(
+          #         input_mask, shape=[seq_length],
+          #         dtype=tf.int32),
+          #       'label_ids': tf.constant(
+          #         label_ids, shape=[seq_length],
+          #         dtype=tf.int32),
+          #     "segment_ids":
+          #         tf.constant(
+          #             segment_ids,
+          #             shape=[seq_length],
+          #             dtype=tf.int32)
+          # }
+          yield {'input_ids':np.array(input_ids,dtype=np.int32),
+                'input_mask': np.array(input_mask,dtype=np.int32),
+                'label_ids': np.array(label_ids,dtype=np.int32),
+              "segment_ids": np.array(segment_ids,dtype=np.int32)
           }
 
   def input_fn(params):
@@ -613,11 +618,6 @@ def input_fn_builder(features, seq_length, is_training, drop_remainder):
     batch_size = params["batch_size"]
 
     num_examples = len(features)
-
-    # This is for demo purposes and does NOT scale to large data sets. We do
-    # not use Dataset.from_generator() because that uses tf.py_func which is
-    # not TPU compatible. The right way to load data is with TFRecordReader.
-
     if FLAGS.mixup and is_training:
         d = tf.data.Dataset.from_generator(mixup,{'input_ids':tf.int32,
                                                   'input_mask':tf.int32,
