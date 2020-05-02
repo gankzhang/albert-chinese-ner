@@ -598,7 +598,7 @@ def input_fn_builder(features, seq_length, is_training, drop_remainder):
           segment_ids = all_segment_ids[0]
           if FLAGS.data_aug:
               real_len = sum(input_mask)
-              for i in range(1):
+              for i in range(5):
                   insert_place,input_token = random.randint(0, real_len - 1), random.randint(0,num_token - 1),
                   input_ids.insert(insert_place, input_token)
                   input_mask.insert(insert_place, 1)
