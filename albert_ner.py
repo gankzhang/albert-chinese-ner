@@ -93,6 +93,9 @@ flags.DEFINE_bool(
     "use_unlabel", True,
     "Whether to use the unlabel dataset")
 
+flags.DEFINE_bool(
+    "data_aug", True,
+    "Data augmentation for the input data")
 
 
 flags.DEFINE_integer("train_batch_size", 32, "Total batch size for training.")
@@ -454,7 +457,7 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
     log_probs = tf.nn.log_softmax(logits, axis=-1)
     one_hot_labels = tf.one_hot(labels, depth=num_labels, dtype=tf.float32)
     per_example_loss = -tf.reduce_sum(one_hot_labels * log_probs, axis=-1)
-    loss = tf.reduce_sum(per_example_loss)
+    loss = tf.reduce_sum(per_example_loss * (1 - tf.cast(tf.equal(labels,0),tf.int32)) )
     probabilities = tf.nn.softmax(logits, axis=-1)
     predict = tf.argmax(probabilities,axis=-1)
     return (loss, per_example_loss, logits,predict)
@@ -586,27 +589,23 @@ def input_fn_builder(features, seq_length, is_training, drop_remainder):
 
   def mixup():
       num_examples = len(all_input_ids)
+      num_token = 21128
       while True:
           id_a = random.randint(0, num_examples - 1)
           input_mask = all_input_mask[id_a]
           input_ids = all_input_ids[id_a]
           label_ids = all_label_ids[id_a]
           segment_ids = all_segment_ids[0]
-          # yield {'input_ids':tf.constant(
-          #     input_ids, shape=[seq_length],
-          #     dtype=tf.int32),
-          #       'input_mask': tf.constant(
-          #         input_mask, shape=[seq_length],
-          #         dtype=tf.int32),
-          #       'label_ids': tf.constant(
-          #         label_ids, shape=[seq_length],
-          #         dtype=tf.int32),
-          #     "segment_ids":
-          #         tf.constant(
-          #             segment_ids,
-          #             shape=[seq_length],
-          #             dtype=tf.int32)
-          # }
+          if FLAGS.data_aug:
+              real_len = sum(input_mask)
+              for i in range(5):
+                  insert_place,input_token = random.randint(0, real_len - 1), random.randint(0,num_token - 1),
+                  input_ids.insert(insert_place, input_token)
+                  input_mask.insert(insert_place, 1)
+                  label_ids.insert(insert_place, 0)
+              input_ids = input_ids[:seq_length]
+              input_mask = input_mask[:seq_length]
+              label_ids = label_ids[:seq_length]
           yield {'input_ids':np.array(input_ids,dtype=np.int32),
                 'input_mask': np.array(input_mask,dtype=np.int32),
                 'label_ids': np.array(label_ids,dtype=np.int32),
@@ -775,7 +774,7 @@ def main(_):
     estimator.train(input_fn=train_input_fn, max_steps=num_train_steps)
 
     if FLAGS.use_unlabel:
-        unlabel_train_examples = unlabel_train_examples
+        unlabel_train_examples = unlabel_train_examples[:1000]
         unlabel_train_features = convert_examples_to_features(unlabel_train_examples, label_list, FLAGS.max_seq_length, tokenizer)
         unlabel_train_input_fn = input_fn_builder(features=unlabel_train_features,
                          seq_length=FLAGS.max_seq_length,
