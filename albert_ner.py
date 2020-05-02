@@ -457,7 +457,7 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
     log_probs = tf.nn.log_softmax(logits, axis=-1)
     one_hot_labels = tf.one_hot(labels, depth=num_labels, dtype=tf.float32)
     per_example_loss = -tf.reduce_sum(one_hot_labels * log_probs, axis=-1)
-    loss = tf.reduce_sum(tf.multiply(per_example_loss,(1 - tf.cast(tf.equal(labels,0),tf.float32))) )
+    loss = tf.reduce_sum(tf.multiply(per_example_loss,(1 - tf.cast(tf.equal(labels,12),tf.float32))) )
     probabilities = tf.nn.softmax(logits, axis=-1)
     predict = tf.argmax(probabilities,axis=-1)
     return (loss, per_example_loss, logits,predict)
@@ -598,11 +598,11 @@ def input_fn_builder(features, seq_length, is_training, drop_remainder):
           segment_ids = all_segment_ids[0]
           if FLAGS.data_aug:
               real_len = sum(input_mask)
-              for i in range(5):
+              for i in range(1):
                   insert_place,input_token = random.randint(0, real_len - 1), random.randint(0,num_token - 1),
                   input_ids.insert(insert_place, input_token)
                   input_mask.insert(insert_place, 1)
-                  label_ids.insert(insert_place, 0)
+                  label_ids.insert(insert_place, 12)
               input_ids = input_ids[:seq_length]
               input_mask = input_mask[:seq_length]
               label_ids = label_ids[:seq_length]
