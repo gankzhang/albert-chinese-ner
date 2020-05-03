@@ -34,7 +34,7 @@ from data_augmentation import data_augmentation
 # from loss import bi_tempered_logistic_loss
 
 flags = tf.flags
-
+ 
 FLAGS = flags.FLAGS
 ##for data_generate.py
 flags.DEFINE_integer(
