@@ -776,7 +776,7 @@ def main(_):
                                                   drop_remainder=False,
                                                   if_data_aug=FLAGS.data_aug)
         result = estimator.predict(unlabel_train_input_fn)
-        K = 5
+        K = 3
         for aug_times_id in range(K):
             print(aug_times_id,' times predicting')
             tag = [1]*len(unlabel_train_examples)
