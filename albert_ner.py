@@ -813,6 +813,7 @@ def main(_):
         #         del_num += 1
         # print('remain',sum(tag)/len(tag)*100,'%')
         unlabel_train_features = unlabel_train_features + train_features * 3
+        random.shuffle(unlabel_train_features)
         unlabel_train_input_fn = input_fn_builder(features=unlabel_train_features,
                          seq_length=FLAGS.max_seq_length,
                          is_training=True,
