@@ -30,6 +30,7 @@ import pickle
 import tf_metrics
 import random
 import numpy as np
+from data_augmentation import data_augmentation
 # from loss import bi_tempered_logistic_loss
 
 flags = tf.flags
@@ -70,10 +71,6 @@ flags.DEFINE_bool(
     "do_lower_case", True,
     "Whether to lower case the input text. Should be True for uncased "
     "models and False for cased models.")
-
-flags.DEFINE_bool(
-    "mixup", True,
-    "If mix the training set with random portion")
 
 flags.DEFINE_integer(
     "max_seq_length", 128,
@@ -457,7 +454,7 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
     log_probs = tf.nn.log_softmax(logits, axis=-1)
     one_hot_labels = tf.one_hot(labels, depth=num_labels, dtype=tf.float32)
     per_example_loss = -tf.reduce_sum(one_hot_labels * log_probs, axis=-1)
-    loss = tf.reduce_sum(tf.multiply(per_example_loss,(1 - tf.cast(tf.equal(labels,12),tf.float32))) )
+    loss = tf.reduce_sum(tf.multiply(per_example_loss,(1 - tf.cast(tf.equal(labels,0),tf.float32))) )
     probabilities = tf.nn.softmax(logits, axis=-1)
     predict = tf.argmax(probabilities,axis=-1)
     return (loss, per_example_loss, logits,predict)
@@ -566,14 +563,15 @@ def model_fn_builder(bert_config, num_labels, init_checkpoint, learning_rate,
       output_spec = tf.estimator.EstimatorSpec(
           mode=mode,
           predictions= {'predicts':predicts,
-                        'logits':logits})#}predictions can be a tensor or a dict of tensors
+                        'logits':logits,
+                        'labels':label_ids})#}predictions can be a tensor or a dict of tensors
     return output_spec
 
   return model_fn
 
 
 
-def input_fn_builder(features, seq_length, is_training, drop_remainder):
+def input_fn_builder(features, seq_length, is_training, drop_remainder, if_data_aug):
   """Creates an `input_fn` closure to be passed to Estimator."""
 
   all_input_ids = []
@@ -587,25 +585,18 @@ def input_fn_builder(features, seq_length, is_training, drop_remainder):
     all_segment_ids.append(feature.segment_ids)
     all_label_ids.append(feature.label_ids)
 
-  def mixup():
+  def data_aug():
       num_examples = len(all_input_ids)
       num_token = 21128
+      id_a = -1
       while True:
-          id_a = random.randint(0, num_examples - 1)
+          id_a = (id_a + 1)%num_examples
           input_mask = all_input_mask[id_a]
           input_ids = all_input_ids[id_a]
           label_ids = all_label_ids[id_a]
           segment_ids = all_segment_ids[0]
           if FLAGS.data_aug:
-              real_len = sum(input_mask)
-              for i in range(5):
-                  insert_place,input_token = random.randint(0, real_len - 1), random.randint(0,num_token - 1),
-                  input_ids.insert(insert_place, input_token)
-                  input_mask.insert(insert_place, 1)
-                  label_ids.insert(insert_place, 12)
-              input_ids = input_ids[:seq_length]
-              input_mask = input_mask[:seq_length]
-              label_ids = label_ids[:seq_length]
+              input_ids, input_mask,label_ids = data_augmentation(input_ids, input_mask, label_ids, seq_length, num_token)
           yield {'input_ids':np.array(input_ids,dtype=np.int32),
                 'input_mask': np.array(input_mask,dtype=np.int32),
                 'label_ids': np.array(label_ids,dtype=np.int32),
@@ -617,8 +608,8 @@ def input_fn_builder(features, seq_length, is_training, drop_remainder):
     batch_size = params["batch_size"]
 
     num_examples = len(features)
-    if FLAGS.mixup and is_training:
-        d = tf.data.Dataset.from_generator(mixup,{'input_ids':tf.int32,
+    if if_data_aug:
+        d = tf.data.Dataset.from_generator(data_aug,{'input_ids':tf.int32,
                                                   'input_mask':tf.int32,
                                                   'label_ids':tf.int32,
                                                   'segment_ids':tf.int32},
@@ -769,38 +760,55 @@ def main(_):
     train_input_fn = input_fn_builder(features=train_features,
                      seq_length=FLAGS.max_seq_length,
                      is_training=True,
-                     drop_remainder=True)
+                     drop_remainder=True,
+                     if_data_aug=FLAGS.data_aug)
 
     estimator.train(input_fn=train_input_fn, max_steps=num_train_steps)
 
     if FLAGS.use_unlabel:
-        unlabel_train_examples = unlabel_train_examples[:1000]
-        unlabel_train_features = convert_examples_to_features(unlabel_train_examples, label_list, FLAGS.max_seq_length, tokenizer)
+        auged_logits = []
+        unlabel_train_examples = unlabel_train_examples[:100]
+        unlabel_train_features = convert_examples_to_features(unlabel_train_examples, label_list, FLAGS.max_seq_length,
+                                                              tokenizer)
         unlabel_train_input_fn = input_fn_builder(features=unlabel_train_features,
-                         seq_length=FLAGS.max_seq_length,
-                         is_training=False,
-                         drop_remainder=False)
-
+                                                  seq_length=FLAGS.max_seq_length,
+                                                  is_training=False,
+                                                  drop_remainder=False,
+                                                  if_data_aug=FLAGS.data_aug)
         result = estimator.predict(unlabel_train_input_fn)
-        tag = [1]*len(unlabel_train_examples)
-        del_num = 0
-        print('predicting the Pseudo-Labelling')
-        for i,feature in enumerate(unlabel_train_features):
-            predict_result = next(result)
-            predict_feature = predict_result['predicts']
-            predict_logits = predict_result['logits']
-            conf = (np.exp(predict_logits).T / (np.sum(np.exp(predict_logits), 1))).T
-            conf = conf[:np.sum(feature.input_mask)].max(1).mean()
-            # print(i,np.sum(feature.label_ids != predict_feature)/np.sum(feature.input_mask),conf)
-            # if np.sum(feature.label_ids != predict_feature)/np.sum(feature.input_mask) > (FLAGS.thres):
-            if conf < (1-FLAGS.thres):#0.01
-                tag[i] = 0
-            unlabel_train_features[i].label_ids = predict_feature.tolist()
-        for i in range(len(unlabel_train_examples)):
-            if not tag[i]:
-                unlabel_train_examples.pop(i-del_num)
-                del_num += 1
-        print('remain',sum(tag)/len(tag)*100,'%')
+        K = 5
+        for aug_times_id in range(K):
+            tag = [1]*len(unlabel_train_examples)
+            del_num = 0
+            print('predicting the Pseudo-Labelling')
+            auged_predict_logits = []
+            for i,feature in enumerate(unlabel_train_features):
+                predict_result = next(result)
+                predict_feature = predict_result['predicts']
+                predict_logits = predict_result['logits']
+                aug_label = predict_result['labels']
+                conf = (np.exp(predict_logits).T / (np.sum(np.exp(predict_logits), 1))).T
+                conf = conf[:np.sum(feature.input_mask)].max(1).mean()
+                # print(i,np.sum(feature.label_ids != predict_feature)/np.sum(feature.input_mask),conf)
+                # if np.sum(feature.label_ids != predict_feature)/np.sum(feature.input_mask) > (FLAGS.thres):
+                if conf < (1-FLAGS.thres):#0.01
+                    tag[i] = 0
+                # unlabel_train_features[i].label_ids = predict_feature.tolist()
+                # predict_feature = predict_feature.tolist()
+                # predict_features.append([label for j,label in enumerate(predict_feature) if (aug_label[j]!=11)])
+                auged_predict_logits.append(np.array([logit for j, logit in enumerate(predict_logits) if (aug_label[j] != 11)]))
+
+            auged_logits.append(auged_predict_logits)
+        unlabel_train_features = np.array(auged_logits).mean(0)
+        # for temp in range(100):
+        #     print(np.argmax((unlabel_train_features_1[temp]) != unlabel_train_features[temp].label_ids) / (
+        #             np.sum(unlabel_train_features[temp].input_mask) - 5))
+
+        # for i in range(len(unlabel_train_examples)):
+        #     if not tag[i]:
+        #         unlabel_train_examples.pop(i-del_num)
+        #         del_num += 1
+        # print('remain',sum(tag)/len(tag)*100,'%')
         unlabel_train_features = unlabel_train_features + train_features * 10
         unlabel_train_input_fn = input_fn_builder(features=unlabel_train_features,
                          seq_length=FLAGS.max_seq_length,
