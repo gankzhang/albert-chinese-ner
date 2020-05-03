@@ -7,10 +7,13 @@ def data_augmentation(input_ids,input_mask,label_ids,seq_length,num_token):
     label_ids = copy.deepcopy(label_ids)
 
     for i in range(5):
-        insert_place, input_token = random.randint(1, real_len - 2), random.randint(0, num_token - 1),
-        input_ids.insert(insert_place, input_token)
+        insert_place, input_token = random.randint(1, real_len - 2), random.randint(0, num_token - 1)
+        if random.random()>0.8:
+            input_ids.insert(insert_place, input_token)
+        else:
+            input_ids.insert(insert_place, input_ids[insert_place])
         input_mask.insert(insert_place, 1)
-        label_ids.insert(insert_place, 11)
+        label_ids.insert(insert_place, 100)
     input_ids = input_ids[:seq_length]
     input_mask = input_mask[:seq_length]
     label_ids = label_ids[:seq_length]

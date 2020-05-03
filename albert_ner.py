@@ -243,7 +243,7 @@ class NerProcessor(DataProcessor):
 
   def get_labels(self):
     # return ["O", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC", "[CLS]","[SEP]"]
-    return ["O", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC", "X","[CLS]","[SEP]"]
+    return ["O", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC", "X", "[CLS]", "[SEP]"]
 
   def _create_example(self, lines, set_type):
     examples = []
@@ -454,7 +454,7 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
     log_probs = tf.nn.log_softmax(logits, axis=-1)
     one_hot_labels = tf.one_hot(labels, depth=num_labels, dtype=tf.float32)
     per_example_loss = -tf.reduce_sum(one_hot_labels * log_probs, axis=-1)
-    loss = tf.reduce_sum(tf.multiply(per_example_loss,(1 - tf.cast(tf.equal(labels,0),tf.float32))) )
+    loss = tf.reduce_sum(tf.multiply(per_example_loss,(1 - tf.cast(tf.equal(labels,100),tf.float32))) )
     probabilities = tf.nn.softmax(logits, axis=-1)
     predict = tf.argmax(probabilities,axis=-1)
     return (loss, per_example_loss, logits,predict)
@@ -797,7 +797,7 @@ def main(_):
                 # unlabel_train_features[i].label_ids = predict_feature.tolist()
                 # predict_feature = predict_feature.tolist()
                 # predict_features.append([label for j,label in enumerate(predict_feature) if (aug_label[j]!=11)])
-                auged_predict_logits.append(np.array([logit for j, logit in enumerate(predict_logits) if (aug_label[j] != 11)]))
+                auged_predict_logits.append(np.array([logit for j, logit in enumerate(predict_logits) if (aug_label[j] != 100)]))
 
             auged_logits.append(auged_predict_logits)
         temp_unlabel_train_features = np.array(auged_logits).mean(0).argmax(-1)
@@ -854,6 +854,9 @@ def main(_):
             ckpt_name = filename[:-6]
             cur_filename = os.path.join(FLAGS.output_dir, ckpt_name)
             global_step = int(cur_filename.split("-")[-1])
+            if global_step == 0:
+                tf.logging.info("Not add {} to eval list.".format(cur_filename))
+                continue
             tf.logging.info("Add {} to eval list.".format(cur_filename))
             steps_and_files.append([global_step, cur_filename])
     steps_and_files = sorted(steps_and_files, key=lambda x: x[0])
