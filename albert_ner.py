@@ -767,7 +767,7 @@ def main(_):
 
     if FLAGS.use_unlabel:
         auged_logits = []
-        unlabel_train_examples = unlabel_train_examples
+        unlabel_train_examples = unlabel_train_examples[:100]
         unlabel_train_features = convert_examples_to_features(unlabel_train_examples, label_list, FLAGS.max_seq_length,
                                                               tokenizer)
         unlabel_train_input_fn = input_fn_builder(features=unlabel_train_features,
@@ -778,6 +778,7 @@ def main(_):
         result = estimator.predict(unlabel_train_input_fn)
         K = 5
         for aug_times_id in range(K):
+            print(K,' times predicting')
             tag = [1]*len(unlabel_train_examples)
             del_num = 0
             print('predicting the Pseudo-Labelling')
@@ -815,7 +816,8 @@ def main(_):
         unlabel_train_input_fn = input_fn_builder(features=unlabel_train_features,
                          seq_length=FLAGS.max_seq_length,
                          is_training=True,
-                         drop_remainder=True)
+                         drop_remainder=True,
+                         if_data_aug=False)
         estimator.train(input_fn=unlabel_train_input_fn, steps=num_unlabel_train_steps)
 
   if FLAGS.do_eval:
