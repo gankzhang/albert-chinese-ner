@@ -34,7 +34,7 @@ from data_augmentation import data_augmentation
 # from loss import bi_tempered_logistic_loss
 
 flags = tf.flags
- 
+
 FLAGS = flags.FLAGS
 ##for data_generate.py
 flags.DEFINE_integer(
@@ -767,7 +767,7 @@ def main(_):
 
     if FLAGS.use_unlabel:
         auged_logits = []
-        unlabel_train_examples = unlabel_train_examples[:100]
+        unlabel_train_examples = unlabel_train_examples
         unlabel_train_features = convert_examples_to_features(unlabel_train_examples, label_list, FLAGS.max_seq_length,
                                                               tokenizer)
         unlabel_train_input_fn = input_fn_builder(features=unlabel_train_features,
@@ -799,7 +799,9 @@ def main(_):
                 auged_predict_logits.append(np.array([logit for j, logit in enumerate(predict_logits) if (aug_label[j] != 11)]))
 
             auged_logits.append(auged_predict_logits)
-        unlabel_train_features = np.array(auged_logits).mean(0)
+        temp_unlabel_train_features = np.array(auged_logits).mean(0).argmax(-1)
+        for i in range(len(unlabel_train_features)):
+            unlabel_train_features[i].label_ids = temp_unlabel_train_features[i].tolist()
         # for temp in range(100):
         #     print(np.argmax((unlabel_train_features_1[temp]) != unlabel_train_features[temp].label_ids) / (
         #             np.sum(unlabel_train_features[temp].input_mask) - 5))
