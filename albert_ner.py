@@ -86,7 +86,7 @@ flags.DEFINE_integer(
     "Whether to run the model in inference mode on the test set.")
 
 flags.DEFINE_integer(
-    "use_unlabel", 0,
+    "use_unlabel", 1,
     "Whether to use the unlabel dataset")
 
 flags.DEFINE_integer(
@@ -767,7 +767,7 @@ def main(_):
 
         if FLAGS.use_unlabel:
             auged_logits = []
-            unlabel_train_examples = unlabel_train_examples
+            unlabel_train_examples = unlabel_train_examples[:10000]
             unlabel_train_features = convert_examples_to_features(unlabel_train_examples, label_list, FLAGS.max_seq_length,
                                                                   tokenizer)
             unlabel_train_input_fn = input_fn_builder(features=unlabel_train_features,
@@ -814,13 +814,14 @@ def main(_):
                     unlabel_train_examples.pop(i-del_num)
                     del_num += 1
             print('remain',sum(tag)/len(tag)*100,'%')
-            unlabel_train_features = unlabel_train_features + train_features * 5
+            times = len(unlabel_train_features)//len(train_features)
+            unlabel_train_features = unlabel_train_features + train_features * times
             random.shuffle(unlabel_train_features)
             unlabel_train_input_fn = input_fn_builder(features=unlabel_train_features,
                              seq_length=FLAGS.max_seq_length,
                              is_training=True,
                              drop_remainder=True,
-                             if_data_aug=True)
+                             if_data_aug=False)
             estimator.train(input_fn=unlabel_train_input_fn, steps=num_unlabel_train_steps)
 
     if FLAGS.do_eval:
