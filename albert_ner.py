@@ -819,8 +819,8 @@ def main(_):
                 else:
                     neg_error_rate += np.argmax((temp_unlabel_train_features[temp]) != unlabel_train_features[temp].label_ids) / \
                                       (np.sum(unlabel_train_features[temp].input_mask) - 5)
-            print('pos ',pos_error_rate/tag.sum())
-            print('neg ',neg_error_rate/(sliced_length-tag.sum()))
+            print('pos ',pos_error_rate/sum(tag))
+            print('neg ',neg_error_rate/(sliced_length-sum(tag)))
             # for temp in range(100):
             #     print(np.argmax((unlabel_train_features_1[temp]) != unlabel_train_features[temp].label_ids) / (
             #             np.sum(unlabel_train_features[temp].input_mask) - 5))
