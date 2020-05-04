@@ -123,6 +123,9 @@ flags.DEFINE_integer("iterations_per_loop", 1000,
                      "How many steps to make in each estimator call.")
 flags.DEFINE_integer("iterations_per_hook_output", 1000,
                      "How many steps to make in each estimator call.")
+flags.DEFINE_integer("K", 3,
+                     "How many times to find the good guessed label")
+
 FLAGS = flags.FLAGS
 params = {
     'batch_size': FLAGS.train_batch_size,
@@ -776,7 +779,7 @@ def main(_):
                                                       drop_remainder=False,
                                                       if_data_aug=FLAGS.data_aug)
             result = estimator.predict(unlabel_train_input_fn)
-            K = 3
+            K = FLAGS.K
             for aug_times_id in range(K):
                 print(aug_times_id,' times predicting')
 
