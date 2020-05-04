@@ -93,6 +93,11 @@ flags.DEFINE_integer(
     "data_aug", 1,
     "Data augmentation for the input data")
 
+flags.DEFINE_integer("K", 3,
+                     "How many times to find the good guessed label")
+flags.DEFINE_integer("unlabel_size", 10000,
+                     "How many unlabeled sample used")
+
 
 flags.DEFINE_integer("train_batch_size", 32, "Total batch size for training.")
 
@@ -123,8 +128,6 @@ flags.DEFINE_integer("iterations_per_loop", 1000,
                      "How many steps to make in each estimator call.")
 flags.DEFINE_integer("iterations_per_hook_output", 1000,
                      "How many steps to make in each estimator call.")
-flags.DEFINE_integer("K", 3,
-                     "How many times to find the good guessed label")
 
 FLAGS = flags.FLAGS
 params = {
@@ -802,7 +805,7 @@ def main(_):
             for id in range(len(unlabel_train_features)):
                 prob = (np.exp(logits[id]).T / (np.sum(np.exp(logits[id]), 1))).T
                 conf = prob[:np.sum(unlabel_train_features[id].input_mask)].max(1).mean()
-                print(conf)
+                # print(conf)
                 if conf < (1 - FLAGS.thres):  # 0.01
                     tag[id] = 0
                 # print(id, conf,
@@ -821,7 +824,8 @@ def main(_):
             print('neg ',neg_error_rate/(sliced_length-sum(tag)))
 
             for i in range(len(unlabel_train_features)):
-                unlabel_train_features[i].label_ids = temp_unlabel_train_features[i].tolist() + [0]*5
+                unlabel_train_features[i].label_ids = \
+                    (temp_unlabel_train_features[i]*np.array(unlabel_train_features[i].input_mask[:-5])).tolist() + [0]*5
 
             # for temp in range(100):
             #     print(np.argmax((unlabel_train_features_1[temp]) != unlabel_train_features[temp].label_ids) / (
