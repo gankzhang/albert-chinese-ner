@@ -77,20 +77,20 @@ flags.DEFINE_integer(
     "Sequences longer than this will be truncated, and sequences shorter "
     "than this will be padded.")
 
-flags.DEFINE_bool("do_train", False, "Whether to run training.")
+flags.DEFINE_integer("do_train", 0, "Whether to run training.")
 
-flags.DEFINE_bool("do_eval", False, "Whether to run eval on the dev set.")
+flags.DEFINE_integer("do_eval", 0, "Whether to run eval on the dev set.")
 
-flags.DEFINE_bool(
-    "do_predict", False,
+flags.DEFINE_integer(
+    "do_predict", 0,
     "Whether to run the model in inference mode on the test set.")
 
-flags.DEFINE_bool(
-    "use_unlabel", False,
+flags.DEFINE_integer(
+    "use_unlabel", 0,
     "Whether to use the unlabel dataset")
 
-flags.DEFINE_bool(
-    "data_aug", True,
+flags.DEFINE_integer(
+    "data_aug", 1,
     "Data augmentation for the input data")
 
 
