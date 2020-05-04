@@ -124,7 +124,7 @@ flags.DEFINE_integer("iterations_per_loop", 1000,
 flags.DEFINE_integer("iterations_per_hook_output", 1000,
                      "How many steps to make in each estimator call.")
 FLAGS = flags.FLAGS
-
+print(FLAGS.use_unlabel)
 params = {
     'batch_size': FLAGS.train_batch_size,
     'data_type': 'sup'
