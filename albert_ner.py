@@ -835,8 +835,9 @@ def main(_):
                 if not tag[i]:
                     unlabel_train_examples.pop(i-del_num)
                     del_num += 1
+            print('threshold',FLAGS.thres)
             print('remain',sum(tag)/len(tag)*100,'%')
-            times = len(unlabel_train_features)//len(train_features)
+            times = 4
             unlabel_train_features = unlabel_train_features + train_features * times
             random.shuffle(unlabel_train_features)
             unlabel_train_input_fn = input_fn_builder(features=unlabel_train_features,
