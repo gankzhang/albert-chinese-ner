@@ -767,7 +767,7 @@ def main(_):
 
     if FLAGS.use_unlabel:
         auged_logits = []
-        unlabel_train_examples = unlabel_train_examples[:100]
+        unlabel_train_examples = unlabel_train_examples[:10000]
         unlabel_train_features = convert_examples_to_features(unlabel_train_examples, label_list, FLAGS.max_seq_length,
                                                               tokenizer)
         unlabel_train_input_fn = input_fn_builder(features=unlabel_train_features,
@@ -779,7 +779,7 @@ def main(_):
         K = 3
         for aug_times_id in range(K):
             print(aug_times_id,' times predicting')
-            tag = [1]*len(unlabel_train_examples)
+
             del_num = 0
             print('predicting the Pseudo-Labelling')
             auged_predict_logits = []
@@ -792,8 +792,7 @@ def main(_):
                 conf = conf[:np.sum(feature.input_mask)].max(1).mean()
                 # print(i,np.sum(feature.label_ids != predict_feature)/np.sum(feature.input_mask),conf)
                 # if np.sum(feature.label_ids != predict_feature)/np.sum(feature.input_mask) > (FLAGS.thres):
-                if conf < (1-FLAGS.thres):#0.01
-                    tag[i] = 0
+
                 # unlabel_train_features[i].label_ids = predict_feature.tolist()
                 # predict_feature = predict_feature.tolist()
                 # predict_features.append([label for j,label in enumerate(predict_feature) if (aug_label[j]!=11)])
@@ -804,13 +803,14 @@ def main(_):
         temp_unlabel_train_features = np.array(auged_logits).mean(0).argmax(-1)
 
         logits = np.array(auged_logits).mean(0)
-
-        for temp in range(100):
-            prob = (np.exp(logits[temp]).T / (np.sum(np.exp(logits[temp]), 1))).T
-            conf = prob[:np.sum(unlabel_train_features[temp].input_mask)].max(1).mean()
-            vars = prob[:np.sum(unlabel_train_features[temp].input_mask)].var(1).mean()
-            print(temp, conf,vars,
-                  np.sum(temp_unlabel_train_features[temp] != np.array(unlabel_train_features[temp].label_ids)[:-5]))
+        tag = [1] * len(unlabel_train_examples)
+        for id in range(len(unlabel_train_features)):
+            prob = (np.exp(logits[id]).T / (np.sum(np.exp(logits[id]), 1))).T
+            conf = prob[:np.sum(unlabel_train_features[id].input_mask)].max(1).mean()
+            if conf < (1 - FLAGS.thres):  # 0.01
+                tag[i] = 0
+            # print(id, conf,
+            #       np.sum(temp_unlabel_train_features[id] != np.array(unlabel_train_features[id].label_ids)[:-5]))
 
         for i in range(len(unlabel_train_features)):
             unlabel_train_features[i].label_ids = temp_unlabel_train_features[i].tolist() + [0]*5
@@ -818,18 +818,18 @@ def main(_):
         #     print(np.argmax((unlabel_train_features_1[temp]) != unlabel_train_features[temp].label_ids) / (
         #             np.sum(unlabel_train_features[temp].input_mask) - 5))
 
-        # for i in range(len(unlabel_train_examples)):
-        #     if not tag[i]:
-        #         unlabel_train_examples.pop(i-del_num)
-        #         del_num += 1
-        # print('remain',sum(tag)/len(tag)*100,'%')
+        for i in range(len(unlabel_train_examples)):
+            if not tag[i]:
+                unlabel_train_examples.pop(i-del_num)
+                del_num += 1
+        print('remain',sum(tag)/len(tag)*100,'%')
         unlabel_train_features = unlabel_train_features + train_features * 5
         random.shuffle(unlabel_train_features)
         unlabel_train_input_fn = input_fn_builder(features=unlabel_train_features,
                          seq_length=FLAGS.max_seq_length,
                          is_training=True,
                          drop_remainder=True,
-                         if_data_aug=False)
+                         if_data_aug=True)
         estimator.train(input_fn=unlabel_train_input_fn, steps=num_unlabel_train_steps)
 
   if FLAGS.do_eval:
