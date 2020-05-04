@@ -124,7 +124,7 @@ flags.DEFINE_integer("iterations_per_loop", 1000,
 flags.DEFINE_integer("iterations_per_hook_output", 1000,
                      "How many steps to make in each estimator call.")
 FLAGS = flags.FLAGS
-print(FLAGS.do_train,FLAGS.thres)
+
 params = {
     'batch_size': FLAGS.train_batch_size,
     'data_type': 'sup'
@@ -668,65 +668,65 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
 
 
 def main(_):
-  tf.logging.set_verbosity(tf.logging.INFO)
+    tf.logging.set_verbosity(tf.logging.INFO)
 
-  processors = {
+    processors = {
       "ner": NerProcessor
-  }
+    }
 
-  tokenization.validate_case_matches_checkpoint(FLAGS.do_lower_case,
+    tokenization.validate_case_matches_checkpoint(FLAGS.do_lower_case,
                                                 FLAGS.init_checkpoint)
 
-  if not FLAGS.do_train and not FLAGS.do_eval and not FLAGS.do_predict:
+    if not FLAGS.do_train and not FLAGS.do_eval and not FLAGS.do_predict:
     raise ValueError(
         "At least one of `do_train`, `do_eval` or `do_predict' must be True.")
 
-  bert_config = modeling.BertConfig.from_json_file(FLAGS.bert_config_file)
+    bert_config = modeling.BertConfig.from_json_file(FLAGS.bert_config_file)
 
-  if FLAGS.max_seq_length > bert_config.max_position_embeddings:
+    if FLAGS.max_seq_length > bert_config.max_position_embeddings:
     raise ValueError(
         "Cannot use sequence length %d because the BERT model "
         "was only trained up to sequence length %d" %
         (FLAGS.max_seq_length, bert_config.max_position_embeddings))
 
-  tf.gfile.MakeDirs(FLAGS.output_dir)
+    tf.gfile.MakeDirs(FLAGS.output_dir)
 
-  processor = processors[FLAGS.task_name]()
+    processor = processors[FLAGS.task_name]()
 
-  label_list = processor.get_labels()
+    label_list = processor.get_labels()
 
-  tokenizer = tokenization.FullTokenizer(
+    tokenizer = tokenization.FullTokenizer(
       vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
 
-  tpu_cluster_resolver = None
+    tpu_cluster_resolver = None
 
-  # is_per_host = tf.contrib.tpu.InputPipelineConfig.PER_HOST_V2
-  # Cloud TPU: Invalid TPU configuration, ensure ClusterResolver is passed to tpu.
-  print("###tpu_cluster_resolver:",tpu_cluster_resolver)
-  run_config = tf.estimator.RunConfig(
+    # is_per_host = tf.contrib.tpu.InputPipelineConfig.PER_HOST_V2
+    # Cloud TPU: Invalid TPU configuration, ensure ClusterResolver is passed to tpu.
+    print("###tpu_cluster_resolver:",tpu_cluster_resolver)
+    run_config = tf.estimator.RunConfig(
       model_dir=FLAGS.output_dir,
       save_checkpoints_steps=FLAGS.save_checkpoints_steps,
       log_step_count_steps=FLAGS.iterations_per_hook_output)
 
 
-  train_examples = None
-  num_train_steps = None
-  num_warmup_steps = None
-  if FLAGS.do_train:
-    # prepare the data here
-    train_examples = processor.get_train_examples(FLAGS.data_dir)
-    print("###length of total train_examples:",len(train_examples))
-    if FLAGS.use_unlabel:
-        unlabel_train_examples = processor.get_unlabel_examples(FLAGS.data_dir)
-        print("###length of total unlabel_examples:",len(unlabel_train_examples))
-        num_unlabel_train_steps = int(len(unlabel_train_examples)/ FLAGS.train_batch_size * FLAGS.num_unlabel_train_epochs)
-    else:
-        num_unlabel_train_steps = 0
-    num_train_steps = int(len(train_examples)/ FLAGS.train_batch_size * FLAGS.num_train_epochs)#TODO: change the num_train_steps
-    num_warmup_steps = int(num_train_steps * FLAGS.warmup_proportion)
+    train_examples = None
+    num_train_steps = None
+    num_warmup_steps = None
+    if FLAGS.do_train:
+        # prepare the data here
+        train_examples = processor.get_train_examples(FLAGS.data_dir)
+        print("###length of total train_examples:",len(train_examples))
+        if FLAGS.use_unlabel:
+            unlabel_train_examples = processor.get_unlabel_examples(FLAGS.data_dir)
+            print("###length of total unlabel_examples:",len(unlabel_train_examples))
+            num_unlabel_train_steps = int(len(unlabel_train_examples)/ FLAGS.train_batch_size * FLAGS.num_unlabel_train_epochs)
+        else:
+            num_unlabel_train_steps = 0
+        num_train_steps = int(len(train_examples)/ FLAGS.train_batch_size * FLAGS.num_train_epochs)#TODO: change the num_train_steps
+        num_warmup_steps = int(num_train_steps * FLAGS.warmup_proportion)
 
 
-  model_fn = model_fn_builder(
+    model_fn = model_fn_builder(
       bert_config=bert_config,
       num_labels=len(label_list) + 1,
       init_checkpoint=FLAGS.init_checkpoint,
@@ -735,197 +735,197 @@ def main(_):
       num_warmup_steps=num_warmup_steps,
       use_one_hot_embeddings=False)
 
-  # If TPU is not available, this will fall back to normal Estimator on CPU
-  # or GPU.
-  estimator = tf.estimator.Estimator(model_fn=model_fn,
+    # If TPU is not available, this will fall back to normal Estimator on CPU
+    # or GPU.
+    estimator = tf.estimator.Estimator(model_fn=model_fn,
       config=run_config,params = params)
 
 
-  if FLAGS.do_train:
-    # train_file = os.path.join(FLAGS.output_dir, "train.tf_record")
-    # train_file_exists=os.path.exists(train_file)
-    # print("###train_file_exists:", train_file_exists," ;train_file:",train_file)
-    # if not train_file_exists: # if tf_record file not exist, convert from raw text file. # TODO
-    #     file_based_convert_examples_to_features(train_examples, label_list, FLAGS.max_seq_length, tokenizer, train_file)
-    tf.logging.info("***** Running training *****")
-    tf.logging.info("  Num examples = %d", len(train_examples))
-    tf.logging.info("  Batch size = %d", FLAGS.train_batch_size)
-    tf.logging.info("  Num steps = %d", num_train_steps)
-    # train_input_fn = file_based_input_fn_builder(
-    #     input_file=train_file,
-    #     seq_length=FLAGS.max_seq_length,
-    #     is_training=True,
-    #     drop_remainder=True)
-    train_features = convert_examples_to_features(train_examples, label_list, FLAGS.max_seq_length, tokenizer)
+    if FLAGS.do_train:
+        # train_file = os.path.join(FLAGS.output_dir, "train.tf_record")
+        # train_file_exists=os.path.exists(train_file)
+        # print("###train_file_exists:", train_file_exists," ;train_file:",train_file)
+        # if not train_file_exists: # if tf_record file not exist, convert from raw text file. # TODO
+        #     file_based_convert_examples_to_features(train_examples, label_list, FLAGS.max_seq_length, tokenizer, train_file)
+        tf.logging.info("***** Running training *****")
+        tf.logging.info("  Num examples = %d", len(train_examples))
+        tf.logging.info("  Batch size = %d", FLAGS.train_batch_size)
+        tf.logging.info("  Num steps = %d", num_train_steps)
+        # train_input_fn = file_based_input_fn_builder(
+        #     input_file=train_file,
+        #     seq_length=FLAGS.max_seq_length,
+        #     is_training=True,
+        #     drop_remainder=True)
+        train_features = convert_examples_to_features(train_examples, label_list, FLAGS.max_seq_length, tokenizer)
 
-    train_input_fn = input_fn_builder(features=train_features,
-                     seq_length=FLAGS.max_seq_length,
-                     is_training=True,
-                     drop_remainder=True,
-                     if_data_aug=FLAGS.data_aug)
-
-    estimator.train(input_fn=train_input_fn, max_steps=num_train_steps)
-
-    if FLAGS.use_unlabel:
-        auged_logits = []
-        unlabel_train_examples = unlabel_train_examples[:10000]
-        unlabel_train_features = convert_examples_to_features(unlabel_train_examples, label_list, FLAGS.max_seq_length,
-                                                              tokenizer)
-        unlabel_train_input_fn = input_fn_builder(features=unlabel_train_features,
-                                                  seq_length=FLAGS.max_seq_length,
-                                                  is_training=False,
-                                                  drop_remainder=False,
-                                                  if_data_aug=FLAGS.data_aug)
-        result = estimator.predict(unlabel_train_input_fn)
-        K = 3
-        for aug_times_id in range(K):
-            print(aug_times_id,' times predicting')
-
-            del_num = 0
-            print('predicting the Pseudo-Labelling')
-            auged_predict_logits = []
-            for i,feature in enumerate(unlabel_train_features):
-                predict_result = next(result)
-                predict_feature = predict_result['predicts']
-                predict_logits = predict_result['logits']
-                aug_label = predict_result['labels']
-                conf = (np.exp(predict_logits).T / (np.sum(np.exp(predict_logits), 1))).T
-                conf = conf[:np.sum(feature.input_mask)].max(1).mean()
-                # print(i,np.sum(feature.label_ids != predict_feature)/np.sum(feature.input_mask),conf)
-                # if np.sum(feature.label_ids != predict_feature)/np.sum(feature.input_mask) > (FLAGS.thres):
-
-                # unlabel_train_features[i].label_ids = predict_feature.tolist()
-                # predict_feature = predict_feature.tolist()
-                # predict_features.append([label for j,label in enumerate(predict_feature) if (aug_label[j]!=11)])
-                auged_predict_logits.append(np.array([logit for j, logit in enumerate(predict_logits) if (aug_label[j] != 100)]))
-
-            auged_logits.append(auged_predict_logits)
-
-        temp_unlabel_train_features = np.array(auged_logits).mean(0).argmax(-1)
-
-        logits = np.array(auged_logits).mean(0)
-        tag = [1] * len(unlabel_train_examples)
-        for id in range(len(unlabel_train_features)):
-            prob = (np.exp(logits[id]).T / (np.sum(np.exp(logits[id]), 1))).T
-            conf = prob[:np.sum(unlabel_train_features[id].input_mask)].max(1).mean()
-            if conf < (1 - FLAGS.thres):  # 0.01
-                tag[i] = 0
-            # print(id, conf,
-            #       np.sum(temp_unlabel_train_features[id] != np.array(unlabel_train_features[id].label_ids)[:-5]))
-
-        for i in range(len(unlabel_train_features)):
-            unlabel_train_features[i].label_ids = temp_unlabel_train_features[i].tolist() + [0]*5
-        # for temp in range(100):
-        #     print(np.argmax((unlabel_train_features_1[temp]) != unlabel_train_features[temp].label_ids) / (
-        #             np.sum(unlabel_train_features[temp].input_mask) - 5))
-
-        for i in range(len(unlabel_train_examples)):
-            if not tag[i]:
-                unlabel_train_examples.pop(i-del_num)
-                del_num += 1
-        print('remain',sum(tag)/len(tag)*100,'%')
-        unlabel_train_features = unlabel_train_features + train_features * 5
-        random.shuffle(unlabel_train_features)
-        unlabel_train_input_fn = input_fn_builder(features=unlabel_train_features,
+        train_input_fn = input_fn_builder(features=train_features,
                          seq_length=FLAGS.max_seq_length,
                          is_training=True,
                          drop_remainder=True,
-                         if_data_aug=True)
-        estimator.train(input_fn=unlabel_train_input_fn, steps=num_unlabel_train_steps)
+                         if_data_aug=FLAGS.data_aug)
 
-  if FLAGS.do_eval:
-    eval_examples = processor.get_dev_examples(FLAGS.data_dir)
-    num_actual_eval_examples = len(eval_examples)
+        estimator.train(input_fn=train_input_fn, max_steps=num_train_steps)
 
-    eval_file = os.path.join(FLAGS.output_dir, "eval.tf_record")
-    file_based_convert_examples_to_features(
-        eval_examples, label_list, FLAGS.max_seq_length, tokenizer, eval_file)
+        if FLAGS.use_unlabel:
+            auged_logits = []
+            unlabel_train_examples = unlabel_train_examples[:10000]
+            unlabel_train_features = convert_examples_to_features(unlabel_train_examples, label_list, FLAGS.max_seq_length,
+                                                                  tokenizer)
+            unlabel_train_input_fn = input_fn_builder(features=unlabel_train_features,
+                                                      seq_length=FLAGS.max_seq_length,
+                                                      is_training=False,
+                                                      drop_remainder=False,
+                                                      if_data_aug=FLAGS.data_aug)
+            result = estimator.predict(unlabel_train_input_fn)
+            K = 3
+            for aug_times_id in range(K):
+                print(aug_times_id,' times predicting')
 
-    tf.logging.info("***** Running evaluation *****")
-    tf.logging.info("  Num examples = %d (%d actual, %d padding)",
-                    len(eval_examples), num_actual_eval_examples,
-                    len(eval_examples) - num_actual_eval_examples)
-    tf.logging.info("  Batch size = %d", FLAGS.eval_batch_size)
+                del_num = 0
+                print('predicting the Pseudo-Labelling')
+                auged_predict_logits = []
+                for i,feature in enumerate(unlabel_train_features):
+                    predict_result = next(result)
+                    predict_feature = predict_result['predicts']
+                    predict_logits = predict_result['logits']
+                    aug_label = predict_result['labels']
+                    conf = (np.exp(predict_logits).T / (np.sum(np.exp(predict_logits), 1))).T
+                    conf = conf[:np.sum(feature.input_mask)].max(1).mean()
+                    # print(i,np.sum(feature.label_ids != predict_feature)/np.sum(feature.input_mask),conf)
+                    # if np.sum(feature.label_ids != predict_feature)/np.sum(feature.input_mask) > (FLAGS.thres):
 
-    # This tells the estimator to run through the entire set.
-    eval_steps = None
-    # However, if running eval on the TPU, you will need to specify the
-    # number of steps.
+                    # unlabel_train_features[i].label_ids = predict_feature.tolist()
+                    # predict_feature = predict_feature.tolist()
+                    # predict_features.append([label for j,label in enumerate(predict_feature) if (aug_label[j]!=11)])
+                    auged_predict_logits.append(np.array([logit for j, logit in enumerate(predict_logits) if (aug_label[j] != 100)]))
 
-    eval_input_fn = file_based_input_fn_builder(
-        input_file=eval_file,
-        seq_length=FLAGS.max_seq_length,
-        is_training=False,
-        drop_remainder=False)
+                auged_logits.append(auged_predict_logits)
 
-    #######################################################################################################################
-    # evaluate all checkpoints; you can use the checkpoint with the best dev accuarcy
-    steps_and_files = []
-    filenames = tf.gfile.ListDirectory(FLAGS.output_dir)
-    for filename in filenames:
-        if filename.endswith(".index"):
-            ckpt_name = filename[:-6]
-            cur_filename = os.path.join(FLAGS.output_dir, ckpt_name)
-            global_step = int(cur_filename.split("-")[-1])
-            if global_step == 0:
-                tf.logging.info("Not add {} to eval list.".format(cur_filename))
-                continue
-            tf.logging.info("Add {} to eval list.".format(cur_filename))
-            steps_and_files.append([global_step, cur_filename])
-    steps_and_files = sorted(steps_and_files, key=lambda x: x[0])
+            temp_unlabel_train_features = np.array(auged_logits).mean(0).argmax(-1)
 
-    output_eval_file = os.path.join(FLAGS.data_dir, "eval_results_albert_zh.txt")
-    print("output_eval_file:",output_eval_file)
-    tf.logging.info("output_eval_file:"+output_eval_file)
-    with tf.gfile.GFile(output_eval_file, "w") as writer:
-        for global_step, filename in sorted(steps_and_files, key=lambda x: x[0]):
-            result = estimator.evaluate(input_fn=eval_input_fn, steps=eval_steps, checkpoint_path=filename)
+            logits = np.array(auged_logits).mean(0)
+            tag = [1] * len(unlabel_train_examples)
+            for id in range(len(unlabel_train_features)):
+                prob = (np.exp(logits[id]).T / (np.sum(np.exp(logits[id]), 1))).T
+                conf = prob[:np.sum(unlabel_train_features[id].input_mask)].max(1).mean()
+                if conf < (1 - FLAGS.thres):  # 0.01
+                    tag[i] = 0
+                # print(id, conf,
+                #       np.sum(temp_unlabel_train_features[id] != np.array(unlabel_train_features[id].label_ids)[:-5]))
 
-            tf.logging.info("***** Eval results %s *****" % (filename))
-            writer.write("***** Eval results %s *****\n" % (filename))
-            for key in sorted(result.keys()):
-                tf.logging.info("  %s = %s", key, str(result[key]))
-                writer.write("%s = %s\n" % (key, str(result[key])))
-    #######################################################################################################################
+            for i in range(len(unlabel_train_features)):
+                unlabel_train_features[i].label_ids = temp_unlabel_train_features[i].tolist() + [0]*5
+            # for temp in range(100):
+            #     print(np.argmax((unlabel_train_features_1[temp]) != unlabel_train_features[temp].label_ids) / (
+            #             np.sum(unlabel_train_features[temp].input_mask) - 5))
 
-    #result = estimator.evaluate(input_fn=eval_input_fn, steps=eval_steps)
-    #
-    #output_eval_file = os.path.join(FLAGS.output_dir, "eval_results.txt")
-    #with tf.gfile.GFile(output_eval_file, "w") as writer:
-    #  tf.logging.info("***** Eval results *****")
-    #  for key in sorted(result.keys()):
-    #    tf.logging.info("  %s = %s", key, str(result[key]))
-    #    writer.write("%s = %s\n" % (key, str(result[key])))
+            for i in range(len(unlabel_train_examples)):
+                if not tag[i]:
+                    unlabel_train_examples.pop(i-del_num)
+                    del_num += 1
+            print('remain',sum(tag)/len(tag)*100,'%')
+            unlabel_train_features = unlabel_train_features + train_features * 5
+            random.shuffle(unlabel_train_features)
+            unlabel_train_input_fn = input_fn_builder(features=unlabel_train_features,
+                             seq_length=FLAGS.max_seq_length,
+                             is_training=True,
+                             drop_remainder=True,
+                             if_data_aug=True)
+            estimator.train(input_fn=unlabel_train_input_fn, steps=num_unlabel_train_steps)
 
-  if FLAGS.do_predict:
-    token_path = os.path.join(FLAGS.output_dir, "token_test.txt")
-    with open('albert_base_ner_checkpoints/label2id.pkl','rb') as rf:
-      label2id = pickle.load(rf)
-      id2label = {value:key for key,value in label2id.items()}
-    if os.path.exists(token_path):
-      os.remove(token_path)
-    predict_examples = processor.get_test_examples(FLAGS.data_dir)
+    if FLAGS.do_eval:
+        eval_examples = processor.get_dev_examples(FLAGS.data_dir)
+        num_actual_eval_examples = len(eval_examples)
 
-    predict_file = os.path.join(FLAGS.output_dir, "predict.tf_record")
-    file_based_convert_examples_to_features(predict_examples, label_list,
-                                            FLAGS.max_seq_length, tokenizer,
-                                            predict_file,mode="test")
+        eval_file = os.path.join(FLAGS.output_dir, "eval.tf_record")
+        file_based_convert_examples_to_features(
+            eval_examples, label_list, FLAGS.max_seq_length, tokenizer, eval_file)
 
-    tf.logging.info("***** Running prediction*****")
-    tf.logging.info("  Num examples = %d", len(predict_examples))
-    tf.logging.info("  Batch size = %d", FLAGS.predict_batch_size)
-    predict_input_fn = file_based_input_fn_builder(
-      input_file=predict_file,
-      seq_length=FLAGS.max_seq_length,
-      is_training=False,
-      drop_remainder=False)
+        tf.logging.info("***** Running evaluation *****")
+        tf.logging.info("  Num examples = %d (%d actual, %d padding)",
+                        len(eval_examples), num_actual_eval_examples,
+                        len(eval_examples) - num_actual_eval_examples)
+        tf.logging.info("  Batch size = %d", FLAGS.eval_batch_size)
 
-    result = estimator.predict(input_fn=predict_input_fn)
-    output_predict_file = os.path.join(FLAGS.output_dir, "label_test.txt")
-    with open(output_predict_file,'w') as writer:
-      for prediction in result:
-        output_line = "\n".join(id2label[id] for id in prediction['predicts'] if id!=0) + "\n"
-        writer.write(output_line)
+        # This tells the estimator to run through the entire set.
+        eval_steps = None
+        # However, if running eval on the TPU, you will need to specify the
+        # number of steps.
+
+        eval_input_fn = file_based_input_fn_builder(
+            input_file=eval_file,
+            seq_length=FLAGS.max_seq_length,
+            is_training=False,
+            drop_remainder=False)
+
+        #######################################################################################################################
+        # evaluate all checkpoints; you can use the checkpoint with the best dev accuarcy
+        steps_and_files = []
+        filenames = tf.gfile.ListDirectory(FLAGS.output_dir)
+        for filename in filenames:
+            if filename.endswith(".index"):
+                ckpt_name = filename[:-6]
+                cur_filename = os.path.join(FLAGS.output_dir, ckpt_name)
+                global_step = int(cur_filename.split("-")[-1])
+                if global_step == 0:
+                    tf.logging.info("Not add {} to eval list.".format(cur_filename))
+                    continue
+                tf.logging.info("Add {} to eval list.".format(cur_filename))
+                steps_and_files.append([global_step, cur_filename])
+        steps_and_files = sorted(steps_and_files, key=lambda x: x[0])
+
+        output_eval_file = os.path.join(FLAGS.data_dir, "eval_results_albert_zh.txt")
+        print("output_eval_file:",output_eval_file)
+        tf.logging.info("output_eval_file:"+output_eval_file)
+        with tf.gfile.GFile(output_eval_file, "w") as writer:
+            for global_step, filename in sorted(steps_and_files, key=lambda x: x[0]):
+                result = estimator.evaluate(input_fn=eval_input_fn, steps=eval_steps, checkpoint_path=filename)
+
+                tf.logging.info("***** Eval results %s *****" % (filename))
+                writer.write("***** Eval results %s *****\n" % (filename))
+                for key in sorted(result.keys()):
+                    tf.logging.info("  %s = %s", key, str(result[key]))
+                    writer.write("%s = %s\n" % (key, str(result[key])))
+        #######################################################################################################################
+
+        #result = estimator.evaluate(input_fn=eval_input_fn, steps=eval_steps)
+        #
+        #output_eval_file = os.path.join(FLAGS.output_dir, "eval_results.txt")
+        #with tf.gfile.GFile(output_eval_file, "w") as writer:
+        #  tf.logging.info("***** Eval results *****")
+        #  for key in sorted(result.keys()):
+        #    tf.logging.info("  %s = %s", key, str(result[key]))
+        #    writer.write("%s = %s\n" % (key, str(result[key])))
+
+    if FLAGS.do_predict:
+        token_path = os.path.join(FLAGS.output_dir, "token_test.txt")
+        with open('albert_base_ner_checkpoints/label2id.pkl','rb') as rf:
+          label2id = pickle.load(rf)
+          id2label = {value:key for key,value in label2id.items()}
+        if os.path.exists(token_path):
+          os.remove(token_path)
+        predict_examples = processor.get_test_examples(FLAGS.data_dir)
+
+        predict_file = os.path.join(FLAGS.output_dir, "predict.tf_record")
+        file_based_convert_examples_to_features(predict_examples, label_list,
+                                                FLAGS.max_seq_length, tokenizer,
+                                                predict_file,mode="test")
+
+tf.logging.info("***** Running prediction*****")
+tf.logging.info("  Num examples = %d", len(predict_examples))
+tf.logging.info("  Batch size = %d", FLAGS.predict_batch_size)
+predict_input_fn = file_based_input_fn_builder(
+  input_file=predict_file,
+  seq_length=FLAGS.max_seq_length,
+  is_training=False,
+  drop_remainder=False)
+
+result = estimator.predict(input_fn=predict_input_fn)
+output_predict_file = os.path.join(FLAGS.output_dir, "label_test.txt")
+with open(output_predict_file,'w') as writer:
+  for prediction in result:
+    output_line = "\n".join(id2label[id] for id in prediction['predicts'] if id!=0) + "\n"
+    writer.write(output_line)
 
 
 if __name__ == "__main__":
