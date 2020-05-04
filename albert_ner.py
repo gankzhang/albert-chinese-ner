@@ -808,9 +808,17 @@ def main(_):
 
             for i in range(len(unlabel_train_features)):
                 unlabel_train_features[i].label_ids = temp_unlabel_train_features[i].tolist() + [0]*5
-            # for temp in range(100):
-            #     print(np.argmax((unlabel_train_features_1[temp]) != unlabel_train_features[temp].label_ids) / (
-            #             np.sum(unlabel_train_features[temp].input_mask) - 5))
+            pos_error_rate = 0
+            neg_error_rate = 0
+            for temp in range(10000):
+                if tag[tamp]:
+                    poss_error_rate += np.argmax((temp_unlabel_train_features[temp]) != unlabel_train_features[temp].label_ids) / (
+                        np.sum(unlabel_train_features[temp].input_mask) - 5))
+                else:
+                    neg_error_rate += np.argmax((temp_unlabel_train_features[temp]) != unlabel_train_features[temp].label_ids) / (
+                        np.sum(unlabel_train_features[temp].input_mask) - 5))
+            print('pos ',pos_error_rate/tag.sum())
+            print('neg ',neg_error_rate/(10000-tag.sum()))
             del_num = 0
             for i in range(len(unlabel_train_examples)):
                 if not tag[i]:
