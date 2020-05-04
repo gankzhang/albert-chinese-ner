@@ -768,7 +768,7 @@ def main(_):
 
         estimator.train(input_fn=train_input_fn, max_steps=num_train_steps)
 
-        sliced_length = 10000
+        sliced_length = 1000
         if FLAGS.use_unlabel:
             auged_logits = []
             unlabel_train_examples = unlabel_train_examples[:sliced_length]
@@ -802,25 +802,27 @@ def main(_):
             for id in range(len(unlabel_train_features)):
                 prob = (np.exp(logits[id]).T / (np.sum(np.exp(logits[id]), 1))).T
                 conf = prob[:np.sum(unlabel_train_features[id].input_mask)].max(1).mean()
+                print(conf)
                 if conf < (1 - FLAGS.thres):  # 0.01
                     tag[id] = 0
                 # print(id, conf,
                 #       np.sum(temp_unlabel_train_features[id] != np.array(unlabel_train_features[id].label_ids)[:-5]))
 
-            for i in range(len(unlabel_train_features)):
-                unlabel_train_features[i].label_ids = temp_unlabel_train_features[i].tolist() + [0]*5
-
             pos_error_rate = 0
             neg_error_rate = 0
             for temp in range(sliced_length):
+                length = np.sum(unlabel_train_features[temp].input_mask)
+                diff = np.sum((temp_unlabel_train_features[temp] != np.array(unlabel_train_features[temp].label_ids)[:-5])[:length]) / length
                 if tag[temp]:
-                    pos_error_rate += np.argmax((temp_unlabel_train_features[temp]) != unlabel_train_features[temp].label_ids) / \
-                                      (np.sum(unlabel_train_features[temp].input_mask) - 5)
+                    pos_error_rate += diff
                 else:
-                    neg_error_rate += np.argmax((temp_unlabel_train_features[temp]) != unlabel_train_features[temp].label_ids) / \
-                                      (np.sum(unlabel_train_features[temp].input_mask) - 5)
+                    neg_error_rate += diff
             print('pos ',pos_error_rate/sum(tag))
             print('neg ',neg_error_rate/(sliced_length-sum(tag)))
+
+            for i in range(len(unlabel_train_features)):
+                unlabel_train_features[i].label_ids = temp_unlabel_train_features[i].tolist() + [0]*5
+
             # for temp in range(100):
             #     print(np.argmax((unlabel_train_features_1[temp]) != unlabel_train_features[temp].label_ids) / (
             #             np.sum(unlabel_train_features[temp].input_mask) - 5))
