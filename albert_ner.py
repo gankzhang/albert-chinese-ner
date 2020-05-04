@@ -844,7 +844,7 @@ def main(_):
                              seq_length=FLAGS.max_seq_length,
                              is_training=True,
                              drop_remainder=True,
-                             if_data_aug=False)
+                             if_data_aug=FLAGS.data_aug)
             estimator.train(input_fn=unlabel_train_input_fn, steps=num_unlabel_train_steps)
 
     if FLAGS.do_eval:
