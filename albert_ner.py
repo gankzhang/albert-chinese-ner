@@ -767,7 +767,7 @@ def main(_):
 
         if FLAGS.use_unlabel:
             auged_logits = []
-            unlabel_train_examples = unlabel_train_examples[:10000]
+            unlabel_train_examples = unlabel_train_examples
             unlabel_train_features = convert_examples_to_features(unlabel_train_examples, label_list, FLAGS.max_seq_length,
                                                                   tokenizer)
             unlabel_train_input_fn = input_fn_builder(features=unlabel_train_features,
