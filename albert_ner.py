@@ -39,7 +39,6 @@ FLAGS = flags.FLAGS
 ##for data_generate.py
 flags.DEFINE_integer(
     "perc", 10, "The percentage of the supervised data")
-
 ## Required parameters
 flags.DEFINE_string(
     "data_dir", None,
@@ -79,6 +78,7 @@ flags.DEFINE_integer(
     "than this will be padded.")
 
 flags.DEFINE_bool("do_train", False, "Whether to run training.")
+print(FLAGS.do_train)
 
 flags.DEFINE_bool("do_eval", False, "Whether to run eval on the dev set.")
 
@@ -87,7 +87,7 @@ flags.DEFINE_bool(
     "Whether to run the model in inference mode on the test set.")
 
 flags.DEFINE_bool(
-    "use_unlabel", True,
+    "use_unlabel", False,
     "Whether to use the unlabel dataset")
 
 flags.DEFINE_bool(
@@ -108,7 +108,7 @@ flags.DEFINE_float("num_train_epochs", 3.0,
 
 flags.DEFINE_float("num_unlabel_train_epochs", 2.0,
                    "Total number of training epochs to perform.")
-flags.DEFINE_float("thres", 0.05,
+flags.DEFINE_float("thres", 0.01,
                    "Total number of training epochs to perform.")
 
 flags.DEFINE_float(
