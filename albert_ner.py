@@ -771,7 +771,7 @@ def main(_):
 
         estimator.train(input_fn=train_input_fn, max_steps=num_train_steps)
 
-        sliced_length = 1000
+        sliced_length = FLAGS.unlabel_size
         if FLAGS.use_unlabel:
             auged_logits = []
             unlabel_train_examples = unlabel_train_examples[:sliced_length]
