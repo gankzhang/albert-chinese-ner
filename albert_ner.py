@@ -86,7 +86,7 @@ flags.DEFINE_bool(
     "Whether to run the model in inference mode on the test set.")
 
 flags.DEFINE_bool(
-    "use_unlabel", False,
+    "use_unlabel", True,
     "Whether to use the unlabel dataset")
 
 flags.DEFINE_bool(
@@ -808,8 +808,8 @@ def main(_):
             for id in range(len(unlabel_train_features)):
                 prob = (np.exp(logits[id]).T / (np.sum(np.exp(logits[id]), 1))).T
                 conf = prob[:np.sum(unlabel_train_features[id].input_mask)].max(1).mean()
-                if conf < (1 - FLAGS.thres):  # 0.01
-                    tag[i] = 0
+                if conf < (1 - FLAGS.thres): 
+                    tag[id] = 0
                 # print(id, conf,
                 #       np.sum(temp_unlabel_train_features[id] != np.array(unlabel_train_features[id].label_ids)[:-5]))
 
