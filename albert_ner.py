@@ -678,13 +678,13 @@ def main(_):
                                                 FLAGS.init_checkpoint)
 
     if not FLAGS.do_train and not FLAGS.do_eval and not FLAGS.do_predict:
-    raise ValueError(
+        raise ValueError(
         "At least one of `do_train`, `do_eval` or `do_predict' must be True.")
 
     bert_config = modeling.BertConfig.from_json_file(FLAGS.bert_config_file)
 
     if FLAGS.max_seq_length > bert_config.max_position_embeddings:
-    raise ValueError(
+        raise ValueError(
         "Cannot use sequence length %d because the BERT model "
         "was only trained up to sequence length %d" %
         (FLAGS.max_seq_length, bert_config.max_position_embeddings))
@@ -911,21 +911,21 @@ def main(_):
                                                 FLAGS.max_seq_length, tokenizer,
                                                 predict_file,mode="test")
 
-tf.logging.info("***** Running prediction*****")
-tf.logging.info("  Num examples = %d", len(predict_examples))
-tf.logging.info("  Batch size = %d", FLAGS.predict_batch_size)
-predict_input_fn = file_based_input_fn_builder(
-  input_file=predict_file,
-  seq_length=FLAGS.max_seq_length,
-  is_training=False,
-  drop_remainder=False)
+        tf.logging.info("***** Running prediction*****")
+        tf.logging.info("  Num examples = %d", len(predict_examples))
+        tf.logging.info("  Batch size = %d", FLAGS.predict_batch_size)
+        predict_input_fn = file_based_input_fn_builder(
+          input_file=predict_file,
+          seq_length=FLAGS.max_seq_length,
+          is_training=False,
+          drop_remainder=False)
 
-result = estimator.predict(input_fn=predict_input_fn)
-output_predict_file = os.path.join(FLAGS.output_dir, "label_test.txt")
-with open(output_predict_file,'w') as writer:
-  for prediction in result:
-    output_line = "\n".join(id2label[id] for id in prediction['predicts'] if id!=0) + "\n"
-    writer.write(output_line)
+        result = estimator.predict(input_fn=predict_input_fn)
+        output_predict_file = os.path.join(FLAGS.output_dir, "label_test.txt")
+        with open(output_predict_file,'w') as writer:
+          for prediction in result:
+            output_line = "\n".join(id2label[id] for id in prediction['predicts'] if id!=0) + "\n"
+            writer.write(output_line)
 
 
 if __name__ == "__main__":
