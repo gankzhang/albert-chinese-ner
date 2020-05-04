@@ -86,7 +86,7 @@ flags.DEFINE_bool(
     "Whether to run the model in inference mode on the test set.")
 
 flags.DEFINE_bool(
-    "use_unlabel", True,
+    "use_unlabel", False,
     "Whether to use the unlabel dataset")
 
 flags.DEFINE_bool(
@@ -124,7 +124,6 @@ flags.DEFINE_integer("iterations_per_loop", 1000,
 flags.DEFINE_integer("iterations_per_hook_output", 1000,
                      "How many steps to make in each estimator call.")
 FLAGS = flags.FLAGS
-print(FLAGS.use_unlabel)
 params = {
     'batch_size': FLAGS.train_batch_size,
     'data_type': 'sup'
@@ -781,22 +780,13 @@ def main(_):
             for aug_times_id in range(K):
                 print(aug_times_id,' times predicting')
 
-                del_num = 0
+
                 print('predicting the Pseudo-Labelling')
                 auged_predict_logits = []
                 for i,feature in enumerate(unlabel_train_features):
                     predict_result = next(result)
-                    predict_feature = predict_result['predicts']
                     predict_logits = predict_result['logits']
                     aug_label = predict_result['labels']
-                    conf = (np.exp(predict_logits).T / (np.sum(np.exp(predict_logits), 1))).T
-                    conf = conf[:np.sum(feature.input_mask)].max(1).mean()
-                    # print(i,np.sum(feature.label_ids != predict_feature)/np.sum(feature.input_mask),conf)
-                    # if np.sum(feature.label_ids != predict_feature)/np.sum(feature.input_mask) > (FLAGS.thres):
-
-                    # unlabel_train_features[i].label_ids = predict_feature.tolist()
-                    # predict_feature = predict_feature.tolist()
-                    # predict_features.append([label for j,label in enumerate(predict_feature) if (aug_label[j]!=11)])
                     auged_predict_logits.append(np.array([logit for j, logit in enumerate(predict_logits) if (aug_label[j] != 100)]))
 
                 auged_logits.append(auged_predict_logits)
@@ -808,7 +798,7 @@ def main(_):
             for id in range(len(unlabel_train_features)):
                 prob = (np.exp(logits[id]).T / (np.sum(np.exp(logits[id]), 1))).T
                 conf = prob[:np.sum(unlabel_train_features[id].input_mask)].max(1).mean()
-                if conf < (1 - FLAGS.thres): 
+                if conf < (1 - FLAGS.thres):  # 0.01
                     tag[id] = 0
                 # print(id, conf,
                 #       np.sum(temp_unlabel_train_features[id] != np.array(unlabel_train_features[id].label_ids)[:-5]))
@@ -818,7 +808,7 @@ def main(_):
             # for temp in range(100):
             #     print(np.argmax((unlabel_train_features_1[temp]) != unlabel_train_features[temp].label_ids) / (
             #             np.sum(unlabel_train_features[temp].input_mask) - 5))
-
+            del_num = 0
             for i in range(len(unlabel_train_examples)):
                 if not tag[i]:
                     unlabel_train_examples.pop(i-del_num)
