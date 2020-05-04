@@ -78,7 +78,6 @@ flags.DEFINE_integer(
     "than this will be padded.")
 
 flags.DEFINE_bool("do_train", False, "Whether to run training.")
-print(FLAGS.do_train)
 
 flags.DEFINE_bool("do_eval", False, "Whether to run eval on the dev set.")
 
@@ -108,6 +107,7 @@ flags.DEFINE_float("num_train_epochs", 3.0,
 
 flags.DEFINE_float("num_unlabel_train_epochs", 2.0,
                    "Total number of training epochs to perform.")
+
 flags.DEFINE_float("thres", 0.01,
                    "Total number of training epochs to perform.")
 
@@ -123,7 +123,8 @@ flags.DEFINE_integer("iterations_per_loop", 1000,
                      "How many steps to make in each estimator call.")
 flags.DEFINE_integer("iterations_per_hook_output", 1000,
                      "How many steps to make in each estimator call.")
-
+FLAGS = flags.FLAGS
+print(FLAGS.do_train,FLAGS.thres)
 params = {
     'batch_size': FLAGS.train_batch_size,
     'data_type': 'sup'
