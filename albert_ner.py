@@ -811,7 +811,7 @@ def main(_):
                 prob = (np.exp(logits[id]).T / (np.sum(np.exp(logits[id]), 1))).T
                 conf = prob[:np.sum(unlabel_train_features[id].input_mask)].max(1).mean()
                 logits_balance = (logits[id] - base)
-                prob = (np.exp(logits_balance[id]).T / (np.sum(np.exp(logits_balance[id]), 1))).T
+                prob = (np.exp(logits_balance).T / (np.sum(np.exp(logits_balance), 1))).T
                 conf_2 = prob[:np.sum(unlabel_train_features[id].input_mask)].max(1).mean()
 
                 # print(conf,conf_2)
