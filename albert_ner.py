@@ -460,7 +460,7 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
     log_probs = tf.nn.log_softmax(logits, axis=-1)
     one_hot_labels = tf.one_hot(labels, depth=num_labels, dtype=tf.float32)
     per_example_loss = -tf.reduce_sum(one_hot_labels * log_probs, axis=-1)
-    loss = tf.reduce_sum(tf.multiply(per_example_loss,(1 - tf.cast(tf.equal(labels,100),tf.float32))) )
+    loss = tf.reduce_sum(tf.multiply(per_example_loss,(1 - tf.cast(tf.equal(labels,100),tf.float32))))
     probabilities = tf.nn.softmax(logits, axis=-1)
     predict = tf.argmax(probabilities,axis=-1)
     return (loss, per_example_loss, logits,predict)
@@ -802,14 +802,23 @@ def main(_):
 
             logits = np.array(auged_logits).mean(0)
             tag = [1] * len(unlabel_train_examples)
+            labels = logits.argmax(-1)
+            base = np.ones(11)
+            for temp in range(11):
+                print(temp, (np.sum(logits[:, :, temp] * (labels == temp)) + 1e-10) / (np.sum(labels == temp) + 1e-10))
+                base[temp] = (np.sum(logits[:, :, temp] * (labels == temp)) + 1e-10) / (np.sum(labels == temp) + 1e-10)
             for id in range(len(unlabel_train_features)):
                 prob = (np.exp(logits[id]).T / (np.sum(np.exp(logits[id]), 1))).T
                 conf = prob[:np.sum(unlabel_train_features[id].input_mask)].max(1).mean()
-                # print(conf)
-                if conf < (1 - FLAGS.thres):  # 0.01
+                logits_balance = (logits[id] - base)
+                prob = (np.exp(logits_balance[id]).T / (np.sum(np.exp(logits_balance[id]), 1))).T
+                conf_2 = prob[:np.sum(unlabel_train_features[id].input_mask)].max(1).mean()
+
+                print(conf,conf_2)
+                if conf_2 < (1 - FLAGS.thres):  # 0.01
                     tag[id] = 0
-                # print(id, conf,
-                #       np.sum(temp_unlabel_train_features[id] != np.array(unlabel_train_features[id].label_ids)[:-5]))
+                print(id, conf,conf_2,
+                      np.sum(temp_unlabel_train_features[id] != np.array(unlabel_train_features[id].label_ids)[:-5]))
 
             pos_error_rate = 0
             neg_error_rate = 0
