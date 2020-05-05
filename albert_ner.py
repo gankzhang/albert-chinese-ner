@@ -95,7 +95,7 @@ flags.DEFINE_integer(
 
 flags.DEFINE_integer("K", 3,
                      "How many times to find the good guessed label")
-flags.DEFINE_integer("unlabel_size", 10000,
+flags.DEFINE_integer("unlabel_size", 100,
                      "How many unlabeled sample used")
 
 
@@ -464,7 +464,7 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
     probabilities = tf.nn.softmax(logits, axis=-1)
     predict = tf.argmax(probabilities,axis=-1)
     return (loss, per_example_loss, logits,predict)
-
+ 
 def layer_norm(input_tensor, name=None):
   """Run layer normalization on the last dimension of the tensor."""
   return tf.contrib.layers.layer_norm(
@@ -844,7 +844,7 @@ def main(_):
                              seq_length=FLAGS.max_seq_length,
                              is_training=True,
                              drop_remainder=True,
-                             if_data_aug=FLAGS.data_aug)
+                             if_data_aug=False)
             estimator.train(input_fn=unlabel_train_input_fn, steps=num_unlabel_train_steps)
 
     if FLAGS.do_eval:
