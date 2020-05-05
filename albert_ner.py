@@ -767,7 +767,7 @@ def main(_):
                          seq_length=FLAGS.max_seq_length,
                          is_training=True,
                          drop_remainder=True,
-                         if_data_aug=True)
+                         if_data_aug=False)
 
         estimator.train(input_fn=train_input_fn, max_steps=num_train_steps)
 
