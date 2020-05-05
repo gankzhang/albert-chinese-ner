@@ -814,11 +814,11 @@ def main(_):
                 prob = (np.exp(logits_balance[id]).T / (np.sum(np.exp(logits_balance[id]), 1))).T
                 conf_2 = prob[:np.sum(unlabel_train_features[id].input_mask)].max(1).mean()
 
-                print(conf,conf_2)
+                # print(conf,conf_2)
                 if conf_2 < (1 - FLAGS.thres):  # 0.01
                     tag[id] = 0
-                print(id, conf,conf_2,
-                      np.sum(temp_unlabel_train_features[id] != np.array(unlabel_train_features[id].label_ids)[:-5]))
+                # print(id, conf,conf_2,
+                #       np.sum(temp_unlabel_train_features[id] != np.array(unlabel_train_features[id].label_ids)[:-5]))
 
             pos_error_rate = 0
             neg_error_rate = 0
